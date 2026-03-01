@@ -2,7 +2,7 @@ import React from 'react';
 
 export default function Topbar() {
   return (
-    <header className="topbar">
+    <header className="topbar w-100">
       <div className="search-bar">
         <i className="bi bi-search search-icon" />
         <input type="text" placeholder="Search orders, products, or customers..." />

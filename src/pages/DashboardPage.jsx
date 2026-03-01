@@ -6,7 +6,7 @@ import RecentOrders from '../components/RecentOrders';
 
 export default function DashboardPage() {
   return (
-    <div className="dashboard-content">
+    <div className="dashboard-content ">
       {/* Page Header */}
       <div className="page-header">
         <div className="page-title">

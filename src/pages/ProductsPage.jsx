@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 const allProducts = [
   { id: 'P-001', name: 'Surgical Forceps Set',  category: 'Surgical', price: 240,  stock: 85,  status: 'active',   sku: 'SUR-FS-001', sold: 142 },
@@ -29,6 +30,7 @@ const catColors = {
 };
 
 export default function ProductsPage() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('All');
   const [status, setStatus] = useState('All');
@@ -59,7 +61,7 @@ export default function ProductsPage() {
         </div>
         <div className="header-actions">
           <button className="btn-export"><i className="bi bi-download" /> Export</button>
-          <button className="btn-add"><i className="bi bi-plus" /> Add Product</button>
+          <button className="btn-add" onClick={() => navigate('/products/create')}><i className="bi bi-plus" /> Add Product</button>
         </div>
       </div>
 
@@ -153,7 +155,7 @@ export default function ProductsPage() {
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button className="action-btn"><i className="bi bi-pencil" /></button>
+                      <button className="action-btn" onClick={() => navigate(`/products/edit/${p.id}`)}><i className="bi bi-pencil" /></button>
                       <button className="action-btn" style={{ color: '#dc2626', borderColor: '#fecaca' }}><i className="bi bi-trash" /></button>
                     </div>
                   </td>

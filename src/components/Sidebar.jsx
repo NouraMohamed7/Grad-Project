@@ -3,7 +3,6 @@ import { NavLink } from 'react-router-dom';
 
 const navItems = [
   { icon: 'bi-grid-fill',        label: 'Dashboard',         to: '/' },
-  { icon: 'bi-shield-lock-fill', label: 'Admin',             to: '/admin' },
   { icon: 'bi-bar-chart-fill',   label: 'Analytics',         to: '/analytics' },
   { icon: 'bi-box-seam',         label: 'Products',          to: '/products' },
   { icon: 'bi-cart3',            label: 'Orders',            to: '/orders', badge: 12 },
@@ -16,9 +15,7 @@ export default function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-logo">
-        <div className="logo-icon">
-          <i className="bi bi-plus-lg" />
-        </div>
+        <div className="logo-icon"><i className="bi bi-plus-lg" /></div>
         <span>MediEquip</span>
       </div>
 
