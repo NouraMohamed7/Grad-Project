@@ -1,3 +1,18 @@
+:root {
+  --primary: #1AABF0;
+  --primary-dark: #0E8EC8;
+  --primary-light: #E8F7FE;
+  --bg: #EFF4F8;
+  --card-bg: #FFFFFF;
+  --text-main: #0F1C2E;
+  --text-muted: #6B7A8D;
+  --border: #DDE4EE;
+  --input-bg: #F7FAFC;
+  --shadow-card: 0 8px 40px rgba(15, 28, 46, 0.10);
+  --shadow-btn: 0 4px 20px rgba(26, 171, 240, 0.4);
+  --radius: 14px;
+  --radius-sm: 10px;
+}
 * {
   box-sizing: border-box;
   margin: 0;
@@ -6,8 +21,9 @@
 
 body {
   font-family: 'DM Sans', sans-serif;
-  background-color: #f0f2f5;
-  color: #1a1d23;
+  background-color: var(--bg);
+  color: var(--text-main);
+  min-height: 100vh;
 }
 
 /* Sidebar */
@@ -899,3 +915,6 @@ a.nav-item.active {
   .form-row-4 { grid-template-columns: 1fr; }
   .rental-input { width: 80px; }
 }
+
+/* =======================login &signup============================= */
+
