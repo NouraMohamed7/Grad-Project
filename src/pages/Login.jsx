@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom'; // اضيفي useNavigate هنا
+/* eslint-disable react-hooks/exhaustive-deps */
+import { useState, useEffect } from 'react'; 
+import { Link, useNavigate } from 'react-router-dom';
 import './../styles/auth.css';
 import { supplierLogin } from '../apis/login';
 import { toast } from "react-toastify";
@@ -9,6 +10,14 @@ export default function Login() {
   const [remember, setRemember] = useState(false)
   const [form, setForm] = useState({ email: '', password: '' })
   const navigate = useNavigate();
+
+
+  useEffect(() => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      navigate("/home", { replace: true });  
+    }
+  }, []);
 
 const handleSubmit = async (e) => {
   e.preventDefault();

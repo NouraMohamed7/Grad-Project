@@ -1,12 +1,16 @@
+// src/pages/DashboardPage.jsx
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import StatCards from '../components/StatCards';
 import SalesChart from '../components/SalesChart';
 import DonutChart from '../components/DonutChart';
 import RecentOrders from '../components/RecentOrders';
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
+
   return (
-    <div className="dashboard-content ">
+    <div className="dashboard-content">
       {/* Page Header */}
       <div className="page-header">
         <div className="page-title">
@@ -17,7 +21,7 @@ export default function DashboardPage() {
           <button className="btn-export">
             <i className="bi bi-download" /> Export Report
           </button>
-          <button className="btn-add">
+          <button className="btn-add" onClick={() => navigate('/products/create')}>
             <i className="bi bi-plus" /> Add Product
           </button>
         </div>
