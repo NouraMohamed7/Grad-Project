@@ -17,6 +17,7 @@ import EditProductPage from "./pages/EditProductPage";
 import ProductInfoPage from "./pages/ProductInfoPage";
 import ProductRejectionPage from "./pages/ProductRejectionPage";
 import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from './pages/Orderdetailpage';
 import {
   PromosPage,
   RequestsPage,
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="/products/info/:id" element={<ProductInfoPage />} />
             <Route path="/products/rejection/:id" element={<ProductRejectionPage />} />
             <Route path="/orders" element={<OrdersPage />} />
+            <Route path="/orders/:orderId" element={<OrderDetailPage />} />
             <Route path="/promos" element={<PromosPage />} />
             <Route path="/requests" element={<RequestsPage />} />
             <Route path="/chat" element={<ChatPage />} />
