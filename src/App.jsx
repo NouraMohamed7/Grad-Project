@@ -1,14 +1,40 @@
-// src/App.jsx
+import OpenRequestsPage from "./pages/OpenRequestsPagee";
+import MakeOfferPage from "./pages/MakeOfferPagee";
+import CustomRequestsPage from "./pages/CustomRequestsPagee";
+import CustomRequestOrdersPage from "./pages/CustomRequestOrdersPagee";
+import RequestDetailsPage from "./pages/RequestDetailsPagee";
+
+//chats
+import ChatsPage from "./pages/Chatspage";
+import ChatConversationPage from "./pages/Chatconversationpage";
+
+// Then replace the existing /requests route with these inside <Route element={<DashboardLayout />}>:
+
+/*
+  <Route path="/requests" element={<CustomRequestsPage />} />
+  <Route path="/requests/orders" element={<CustomRequestOrdersPage />} />
+  <Route path="/requests/open" element={<OpenRequestsPage />} />
+  <Route path="/requests/make-offer" element={<MakeOfferPage />} />
+  <Route path="/requests/details/:id" element={<RequestDetailsPage />} />
+  <Route path="/requests/order-details/:id" element={<RequestDetailsPage />} />
+*/
+
+// ─── Full updated App.jsx ────────────────────────────────────────────────────
+
 import React from "react";
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Routes,
+  Route,
+  Navigate,
+  Outlet,
+} from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Topbar from "./components/Topbar";
-import Login from './pages/Login';
-import Register from './pages/Register';
+import Login from "./pages/Login";
+import Register from "./pages/Register";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-
-// Pages
 import DashboardPage from "./pages/DashboardPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ProductsPage from "./pages/ProductsPage";
@@ -17,33 +43,27 @@ import EditProductPage from "./pages/EditProductPage";
 import ProductInfoPage from "./pages/ProductInfoPage";
 import ProductRejectionPage from "./pages/ProductRejectionPage";
 import OrdersPage from "./pages/OrdersPage";
-import OrderDetailPage from './pages/Orderdetailpage';
-import {
-  PromosPage,
-  RequestsPage,
-  ChatPage,
-  SettingsPage,
-} from "./pages/PlaceholderPages";
+import OrderDetailPage from "./pages/Orderdetailpage";
+import { PromosPage, ChatPage, SettingsPage } from "./pages/PlaceholderPages";
 
-// Layout with Sidebar + Topbar
+import OpenRequestsPagee from "./pages/OpenRequestsPagee";
+import MakeOfferPagee from "./pages/MakeOfferPagee";
+import CustomRequestsPagee from "./pages/CustomRequestsPagee";
+import CustomRequestOrdersPagee from "./pages/CustomRequestOrdersPagee";
+import RequestDetailsPagee from "./pages/RequestDetailsPagee";
+
 function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
-
   const closeSidebar = () => setSidebarOpen(false);
-  const toggleSidebar = () => setSidebarOpen(o => !o);
+  const toggleSidebar = () => setSidebarOpen((o) => !o);
 
   return (
     <div style={{ display: "flex", width: "100%", minHeight: "100vh" }}>
-      {/* Sidebar overlay for mobile */}
       <div
-        className={`sidebar-overlay${sidebarOpen ? ' open' : ''}`}
+        className={`sidebar-overlay${sidebarOpen ? " open" : ""}`}
         onClick={closeSidebar}
       />
-
-      {/* Sidebar */}
       <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
-
-      {/* Main */}
       <div className="main-content">
         <Topbar onMenuToggle={toggleSidebar} />
         <Outlet />
@@ -55,15 +75,17 @@ function DashboardLayout() {
 export default function App() {
   return (
     <>
-      <ToastContainer position="top-right" autoClose={4000} hideProgressBar={false} />
+      <ToastContainer
+        position="top-right"
+        autoClose={4000}
+        hideProgressBar={false}
+      />
       <BrowserRouter>
         <Routes>
-          {/* Auth */}
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
-          {/* Dashboard */}
           <Route element={<DashboardLayout />}>
             <Route path="/home" element={<DashboardPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
@@ -71,16 +93,41 @@ export default function App() {
             <Route path="/products/create" element={<CreateProductPage />} />
             <Route path="/products/edit/:id" element={<EditProductPage />} />
             <Route path="/products/info/:id" element={<ProductInfoPage />} />
-            <Route path="/products/rejection/:id" element={<ProductRejectionPage />} />
+            <Route
+              path="/products/rejection/:id"
+              element={<ProductRejectionPage />}
+            />
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/:orderId" element={<OrderDetailPage />} />
             <Route path="/promos" element={<PromosPage />} />
-            <Route path="/requests" element={<RequestsPage />} />
-            <Route path="/chat" element={<ChatPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+
+            {/* Custom Requests */}
+            <Route path="/requests" element={<CustomRequestsPagee />} />
+            <Route
+              path="/requests/orders"
+              element={<CustomRequestOrdersPagee />}
+            />
+            <Route path="/requests/open" element={<OpenRequestsPagee />} />
+            <Route path="/requests/make-offer" element={<MakeOfferPagee />} />
+            <Route
+              path="/requests/details/:id"
+              element={<RequestDetailsPagee />}
+            />
+            <Route
+              path="/requests/order-details/:id"
+              element={<RequestDetailsPagee />}
+            />
+
+            {/* Chats  */}
+
+            <Route path="/chat" element={<ChatsPage />} />
+            <Route path="/chat/:chatId" element={<ChatConversationPage />} />
+            <Route path="/chat/new" element={<ChatConversationPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </>
   );
 }
+

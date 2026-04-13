@@ -1,0 +1,227 @@
+/* src/pages/Chats.css */
+
+/* ─── Page wrapper ─── */
+.ch-page {
+  padding: 28px 32px;
+  min-height: 100vh;
+  background: #f5f5f5;
+}
+
+/* ─── Main card ─── */
+.ch-card {
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+}
+
+/* ─── Header ─── */
+.ch-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px;
+  border-bottom: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.ch-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin: 0;
+}
+
+.ch-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+/* ─── Search ─── */
+.ch-search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ch-search-icon {
+  position: absolute;
+  left: 10px;
+  color: #9ca3af;
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.ch-search {
+  padding: 8px 12px 8px 32px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: #374151;
+  background: #fafafa;
+  outline: none;
+  width: 200px;
+  transition: border-color 0.2s;
+}
+
+.ch-search:focus {
+  border-color: #2563eb;
+  background: #fff;
+}
+
+/* ─── New button ─── */
+.ch-new-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  background: #1d4ed8;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+
+.ch-new-btn:hover {
+  background: #1e40af;
+}
+
+/* ─── Table ─── */
+.ch-table-wrap {
+  overflow-x: auto;
+}
+
+.ch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.ch-table thead tr {
+  border-bottom: 1px solid #f0f0f0;
+  background: #fafafa;
+}
+
+.ch-table th {
+  padding: 12px 24px;
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #9ca3af;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.ch-table tbody tr.ch-row {
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.ch-table tbody tr.ch-row:last-child {
+  border-bottom: none;
+}
+
+.ch-table tbody tr.ch-row:hover {
+  background: #f9fafb;
+}
+
+.ch-table td {
+  padding: 18px 24px;
+  color: #374151;
+}
+
+.ch-id {
+  font-weight: 600;
+  color: #111827 !important;
+  white-space: nowrap;
+}
+
+.ch-username {
+  color: #4b5563 !important;
+}
+
+.ch-date {
+  color: #6b7280 !important;
+  white-space: nowrap;
+}
+
+.ch-empty {
+  text-align: center;
+  color: #9ca3af;
+  padding: 40px !important;
+  font-size: 14px;
+}
+
+/* ─── Footer ─── */
+.ch-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #f0f0f0;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.ch-count {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.ch-count strong {
+  color: #111827;
+}
+
+.ch-pagination {
+  display: flex;
+  gap: 8px;
+}
+
+.ch-page-btn {
+  padding: 7px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.ch-page-btn:hover:not(:disabled) {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+
+.ch-page-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* ─── Responsive ─── */
+@media (max-width: 600px) {
+  .ch-page {
+    padding: 16px;
+  }
+
+  .ch-card-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .ch-header-actions {
+    width: 100%;
+  }
+
+  .ch-search {
+    width: 100%;
+  }
+}
