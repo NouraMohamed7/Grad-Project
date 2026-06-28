@@ -1,26 +1,3 @@
-import OpenRequestsPage from "./pages/OpenRequestsPagee";
-import MakeOfferPage from "./pages/MakeOfferPagee";
-import CustomRequestsPage from "./pages/CustomRequestsPagee";
-import CustomRequestOrdersPage from "./pages/CustomRequestOrdersPagee";
-import RequestDetailsPage from "./pages/RequestDetailsPagee";
-
-//chats
-import ChatsPage from "./pages/Chatspage";
-import ChatConversationPage from "./pages/Chatconversationpage";
-
-// Then replace the existing /requests route with these inside <Route element={<DashboardLayout />}>:
-
-/*
-  <Route path="/requests" element={<CustomRequestsPage />} />
-  <Route path="/requests/orders" element={<CustomRequestOrdersPage />} />
-  <Route path="/requests/open" element={<OpenRequestsPage />} />
-  <Route path="/requests/make-offer" element={<MakeOfferPage />} />
-  <Route path="/requests/details/:id" element={<RequestDetailsPage />} />
-  <Route path="/requests/order-details/:id" element={<RequestDetailsPage />} />
-*/
-
-// ─── Full updated App.jsx ────────────────────────────────────────────────────
-
 import React from "react";
 import {
   BrowserRouter,
@@ -44,14 +21,25 @@ import ProductInfoPage from "./pages/ProductInfoPage";
 import ProductRejectionPage from "./pages/ProductRejectionPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/Orderdetailpage";
+
+// PromosPage, ChatPage, SettingsPage are temporary placeholder pages
 import { PromosPage, ChatPage, SettingsPage } from "./pages/PlaceholderPages";
 
-import OpenRequestsPagee from "./pages/OpenRequestsPagee";
-import MakeOfferPagee from "./pages/MakeOfferPagee";
-import CustomRequestsPagee from "./pages/CustomRequestsPagee";
-import CustomRequestOrdersPagee from "./pages/CustomRequestOrdersPagee";
-import RequestDetailsPagee from "./pages/RequestDetailsPagee";
+// ─── Custom Requests feature ────────────────────────────────────────────────────
+import OpenRequestsPage from "./pages/OpenRequestsPage";
+import MakeOfferPage from "./pages/MakeOfferPage";
+import CustomRequestsPage from "./pages/CustomRequestsPage";
+import CustomRequestOrdersPage from "./pages/CustomRequestOrdersPage";
+import RequestDetailsPage from "./pages/RequestDetailsPage";
 
+// ─── Chat pages ───────────────────────────────────────────────────────────────
+import ChatsPage from "./pages/ChatsPage";
+import ChatConversationPage from "./pages/ChatConversationPage";
+
+// ─── Auth guard component ─────────────────────────────────────────────────────
+import PrivateRoute from "./components/PrivateRoute";
+
+// ─── DashboardLayout ──────────────────────────────────────────────────────────
 function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = React.useState(false);
   const closeSidebar = () => setSidebarOpen(false);
@@ -72,6 +60,7 @@ function DashboardLayout() {
   );
 }
 
+// ─── App (root component) ─────────────────────────────────────────────────────
 export default function App() {
   return (
     <>
@@ -80,54 +69,72 @@ export default function App() {
         autoClose={4000}
         hideProgressBar={false}
       />
+
       <BrowserRouter>
         <Routes>
+          {/* ── Public routes ── */}
           <Route path="/" element={<Navigate to="/login" />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
 
+          {/* ── Protected routes ── */}
           <Route element={<DashboardLayout />}>
+
+            {/* Core pages */}
             <Route path="/home" element={<DashboardPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
+
+            {/* Products */}
             <Route path="/products" element={<ProductsPage />} />
             <Route path="/products/create" element={<CreateProductPage />} />
             <Route path="/products/edit/:id" element={<EditProductPage />} />
             <Route path="/products/info/:id" element={<ProductInfoPage />} />
             <Route
+              path="/products/*"
+              element={
+                <PrivateRoute>
+                  <ProductsPage />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/products/rejection/:id"
               element={<ProductRejectionPage />}
             />
+
+            {/* Orders */}
             <Route path="/orders" element={<OrdersPage />} />
             <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+
+            {/* Placeholder pages */}
             <Route path="/promos" element={<PromosPage />} />
             <Route path="/settings" element={<SettingsPage />} />
 
             {/* Custom Requests */}
-            <Route path="/requests" element={<CustomRequestsPagee />} />
+            <Route path="/requests" element={<CustomRequestsPage />} />
             <Route
               path="/requests/orders"
-              element={<CustomRequestOrdersPagee />}
+              element={<CustomRequestOrdersPage />}
             />
-            <Route path="/requests/open" element={<OpenRequestsPagee />} />
-            <Route path="/requests/make-offer" element={<MakeOfferPagee />} />
+            <Route path="/requests/open" element={<OpenRequestsPage />} />
+            <Route path="/requests/make-offer" element={<MakeOfferPage />} />
             <Route
               path="/requests/details/:id"
-              element={<RequestDetailsPagee />}
+              element={<RequestDetailsPage />}
             />
             <Route
               path="/requests/order-details/:id"
-              element={<RequestDetailsPagee />}
+              element={<RequestDetailsPage />}
             />
 
-            {/* Chats  */}
-
+            {/* Chat */}
             <Route path="/chat" element={<ChatsPage />} />
             <Route path="/chat/:chatId" element={<ChatConversationPage />} />
             <Route path="/chat/new" element={<ChatConversationPage />} />
+
           </Route>
         </Routes>
       </BrowserRouter>
     </>
   );
 }
-

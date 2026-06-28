@@ -12,11 +12,13 @@ const getAuthHeaders = () => {
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// GET /v1/product/show  →  all products with filter, sort, pagination
+// GET /v1/product/show
+// Supplier: returns all products belonging to the logged-in supplier
+// Supports: page, per_page, sort_by, sort_order, filter_by, filter_value
 // ─────────────────────────────────────────────────────────────────────
 export const getAllProducts = async ({
   page = 1,
-  per_page = 15,
+  per_page = 8,
   sort_by = "id",
   sort_order = "asc",
   filter_by = null,
@@ -24,7 +26,7 @@ export const getAllProducts = async ({
 } = {}) => {
   const params = { page, per_page, sort_by, sort_order };
   if (filter_by && filter_value) {
-    params.filter_by = filter_by;
+    params.filter_by    = filter_by;
     params.filter_value = filter_value;
   }
 
@@ -36,7 +38,9 @@ export const getAllProducts = async ({
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// GET /v1/product/show/{id}  →  single product by id (admin endpoint)
+// GET /v1/product/show/{id}
+// Returns a single product by ID for the supplier
+// Response: { success, message, data: { id, name, status, image[], ... } }
 // ─────────────────────────────────────────────────────────────────────
 export const getProductById = async (productId) => {
   const response = await axios.get(
@@ -48,8 +52,9 @@ export const getProductById = async (productId) => {
 
 // ─────────────────────────────────────────────────────────────────────
 // GET /v1/product/supplier-profile/show/{supplier_id}
+// Returns products of a specific supplier (used in public supplier profile)
 // ─────────────────────────────────────────────────────────────────────
-export const getSupplierProducts = async (supplierId, page = 1, perPage = 15) => {
+export const getSupplierProducts = async (supplierId, page = 1, perPage = 8) => {
   const response = await axios.get(
     `${BASE_URL}/v1/product/supplier-profile/show/${supplierId}`,
     {
@@ -61,7 +66,8 @@ export const getSupplierProducts = async (supplierId, page = 1, perPage = 15) =>
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// POST /v1/product/create  →  create new product (multipart/form-data)
+// POST /v1/product/create
+// Creates a new product (multipart/form-data)
 // Required: name, price, stock, category_id
 // Optional: setup_duration, description, is_rentable, warranty,
 //           configuration, price_daily, minimum_rental_days,
@@ -72,21 +78,10 @@ export const createProduct = async (productData) => {
   const formData = new FormData();
 
   const scalarFields = [
-    "name",
-    "price",
-    "stock",
-    "category_id",
-    "description",
-    "is_rentable",
-    "warranty",
-    "configuration",
-    "restock_date",
-    // rental fields
-    "price_daily",
-    "minimum_rental_days",
-    "maximum_rental_days",
-    "available_units",
-    "preparation_duration",
+    "name", "price", "stock", "category_id", "description",
+    "is_rentable", "warranty", "configuration", "restock_date",
+    "price_daily", "minimum_rental_days", "maximum_rental_days",
+    "available_units", "preparation_duration",
   ];
 
   scalarFields.forEach((field) => {
@@ -96,23 +91,26 @@ export const createProduct = async (productData) => {
     }
   });
 
-  // setup_duration is always required — default to "0" if missing
+  // setup_duration — default "0" if missing
   formData.append(
     "setup_duration",
     productData.setup_duration !== undefined &&
-      productData.setup_duration !== null &&
-      productData.setup_duration !== ""
+    productData.setup_duration !== null &&
+    productData.setup_duration !== ""
       ? productData.setup_duration
       : "0"
   );
 
-  // Specifications array: specification[0][key] = value
-  if (productData.specifications && productData.specifications.length > 0) {
-    productData.specifications.forEach((spec, index) => {
+  // Specifications: specification[0][key] = value
+  if (productData.specification && productData.specification.length > 0) {
+    productData.specification.forEach((spec, index) => {
       Object.entries(spec).forEach(([key, value]) => {
         formData.append(`specification[${index}][${key}]`, value);
       });
     });
+  } else {
+    // API requires at least one specification
+    formData.append("specification[0][type]", "Standard");
   }
 
   // Images
@@ -134,67 +132,50 @@ export const createProduct = async (productData) => {
     return response.data;
   } catch (error) {
     if (error.response?.data?.errors) {
-      const message = Object.values(error.response.data.errors)
-        .flat()
-        .join(" | ");
-      throw new Error(message);
+      throw new Error(Object.values(error.response.data.errors).flat().join(" | "));
     }
-    if (error.response?.data?.message) {
-      throw new Error(error.response.data.message);
-    }
-    throw new Error(error.message || "Failed to create product");
+    throw new Error(error.response?.data?.message || error.message || "Failed to create product");
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// POST /v1/product/update/{id}  →  update product (multipart/form-data)
-// Only sends changed fields + new images
+// POST /v1/product/update/{id}
+// Updates a product (multipart/form-data)
+// Sends ALL fields that have a value — backend decides what to update
 // ─────────────────────────────────────────────────────────────────────
-export const updateProduct = async (productId, productData, originalData = {}) => {
+export const updateProduct = async (productId, productData) => {
   const formData = new FormData();
 
   const scalarFields = [
-    "name",
-    "price",
-    "stock",
-    "setup_duration",
-    "category_id",
-    "description",
-    "is_rentable",
-    "warranty",
-    "configuration",
-    "restock_date",
-    // rental fields
-    "price_daily",
-    "minimum_rental_days",
-    "maximum_rental_days",
-    "available_units",
-    "preparation_duration",
+    "name", "price", "stock", "setup_duration", "category_id",
+    "description", "warranty", "configuration", "restock_date",
+    "price_daily", "minimum_rental_days", "maximum_rental_days",
+    "available_units", "preparation_duration",
   ];
 
-  // Only send fields that have actually changed
+  // Send every field that has a value
   scalarFields.forEach((field) => {
-    const newVal = productData[field];
-    const oldVal = originalData?.[field];
-
-    // Skip unchanged fields (but always include if no originalData provided)
-    if (originalData && newVal === oldVal) return;
-
-    if (newVal !== undefined && newVal !== null && newVal !== "") {
-      formData.append(field, newVal);
+    const val = productData[field];
+    if (val !== undefined && val !== null && val !== "") {
+      formData.append(field, val);
     }
   });
 
-  // Specifications array
-  if (productData.specifications && productData.specifications.length > 0) {
-    productData.specifications.forEach((spec, index) => {
+  // is_rentable must be 0 or 1 (not true/false string)
+  if (productData.is_rentable !== undefined) {
+    formData.append("is_rentable", productData.is_rentable ? "1" : "0");
+  }
+
+  // Specifications
+  if (productData.specification && productData.specification.length > 0) {
+    productData.specification.forEach((spec, index) => {
       Object.entries(spec).forEach(([key, value]) => {
         formData.append(`specification[${index}][${key}]`, value);
       });
     });
   }
 
-  // New images to add
+  // New images
   if (productData.images && productData.images.length > 0) {
     productData.images.forEach((img) => formData.append("images[]", img));
   }
@@ -212,16 +193,15 @@ export const updateProduct = async (productId, productData, originalData = {}) =
     );
     return response.data;
   } catch (error) {
-    if (error.response?.data?.errors) {
-      const message = Object.values(error.response.data.errors)
-        .flat()
-        .join(" | ");
-      throw new Error(message);
-    }
-    if (error.response?.data?.message) {
-      throw new Error(error.response.data.message);
-    }
-    throw new Error("Failed to update product");
+    // Show the real server error message
+    const serverMsg =
+      error.response?.data?.error ||
+      error.response?.data?.message ||
+      (error.response?.data?.errors
+        ? Object.values(error.response.data.errors).flat().join(" | ")
+        : null);
+
+    throw new Error(serverMsg || `HTTP ${error.response?.status} — Failed to update product`);
   }
 };
 
@@ -232,49 +212,26 @@ export const deleteProduct = async (productId) => {
   try {
     const response = await axios.delete(
       `${BASE_URL}/v1/product/delete/${productId}`,
-      {
-        headers: {
-          ...getAuthHeaders(),
-          "Content-Type": "application/json",
-        },
-      }
+      { headers: getAuthHeaders() }
     );
     return response.data;
   } catch (error) {
-    // Log full error for debugging
-    console.error("Delete error:", error.response?.status, error.response?.data);
-
-    if (error.response?.data?.message) {
-      throw new Error(error.response.data.message);
-    }
-    if (error.response?.data?.error) {
-      throw new Error(error.response.data.error);
-    }
-    throw new Error(`Failed to delete product (${error.response?.status || 'unknown error'})`);
+    throw new Error(
+      error.response?.data?.message ||
+      error.response?.data?.error ||
+      `HTTP ${error.response?.status} error`
+    );
   }
 };
 
 // ─────────────────────────────────────────────────────────────────────
-// POST /v1/product/archive/{id}  →  archive / unarchive
-// body: { is_archive: 0 | 1 }
+// POST /v1/product/archive/{id}
+// Body: { is_archive: 0 | 1 }
 // ─────────────────────────────────────────────────────────────────────
 export const updateProductArchive = async (productId, isArchive) => {
   const response = await axios.post(
     `${BASE_URL}/v1/product/archive/${productId}`,
     { is_archive: isArchive },
-    { headers: getAuthHeaders() }
-  );
-  return response.data;
-};
-
-// ─────────────────────────────────────────────────────────────────────
-// POST /v1/product/status/{id}  →  admin: update product status
-// body: { status: "create_accepted" | "create_rejected" | ... }
-// ─────────────────────────────────────────────────────────────────────
-export const updateProductStatus = async (productId, status) => {
-  const response = await axios.post(
-    `${BASE_URL}/v1/product/status/${productId}`,
-    { status },
     { headers: getAuthHeaders() }
   );
   return response.data;

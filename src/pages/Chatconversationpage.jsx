@@ -1,73 +1,173 @@
-// src/pages/ChatConversationPage.jsx
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import './../styles/ChatConversation.css';
-
-// ─── Mock data ───────────────────────────────────────────────────────────────
-const mockConversations = {
-  'cht-9021': {
-    doctorName:    'Dr. Julianne Moore',
-    doctorInitials:'JM',
-    online:        true,
-    messages: [
-      { id: 1, sender: 'them', text: 'Good morning. We are reviewing our surgical kit requirements for next month\'s orthopedic procedures.', time: '09:12 AM' },
-      { id: 2, sender: 'them', text: 'Could you confirm if the sterile kits with the SKU-900 series are currently in stock for immediate dispatch? We might need an additional 50 units by Friday.', time: '09:13 AM' },
-      { id: 3, sender: 'me',   text: 'Hello Dr. Moore. I\'ve just checked our inventory. We have 120 units of the SKU-900 series available at the regional hub.', time: '09:45 AM', seen: true },
-      { id: 4, sender: 'me',   text: 'I can lock in those 50 units for you now. Would you like me to process the expedited shipping for a Friday arrival?', time: '09:46 AM', seen: true },
-      { id: 5, sender: 'them', text: 'Is the shipment for the sterile kits scheduled?', time: '10:45 AM' },
-    ],
-  },
-  'cht-8954': {
-    doctorName:    'Dr. James Wilson',
-    doctorInitials:'JW',
-    online:        false,
-    messages: [
-      { id: 1, sender: 'them', text: 'Hello, I need to check on the MRI shielding panels order.', time: '11:00 AM' },
-      { id: 2, sender: 'me',   text: 'Hi Dr. Wilson! The panels are being prepared for dispatch.', time: '11:15 AM', seen: true },
-    ],
-  },
-};
-
-const fallbackConvo = {
-  doctorName:    'Doctor',
-  doctorInitials:'DR',
-  online:        false,
-  messages: [],
-};
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
+import { sendMessage, getMessages, markAsRead } from '../apis/chat';
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function ChatConversationPage() {
-  const { chatId }    = useParams();
+  const { chatId }    = useParams();      
   const navigate      = useNavigate();
-  const convo         = mockConversations[chatId] || fallbackConvo;
+  const location      = useLocation();
 
-  const [messages, setMessages] = useState(convo.messages);
+  const { conversationId, userName, role } = location.state || {};
+
+  // ─── States ─────────────────────────────────────────────────
+  const [messages, setMessages] = useState([]);
   const [input,    setInput]    = useState('');
-  const bottomRef               = useRef(null);
+  const [loading,  setLoading]  = useState(true);
+  const [sending,  setSending]  = useState(false);
+  const [error,    setError]    = useState(null);
+  const [convoInfo, setConvoInfo] = useState({
+    doctorName: userName || 'Doctor',
+    doctorInitials: userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'DR',
+    online: false,
+  });
+
+  const bottomRef = useRef(null);
+
+  // ─── Fetch messages on mount ──────────────────────────────
+  useEffect(() => {
+    const fetchMessages = async () => {
+      try {
+        setLoading(true);
+
+        // لو عندنا conversationId، بنجيب الرسائل من الـ API
+        if (conversationId) {
+          try {
+            const res = await getMessages(conversationId);
+            // بنفترض إن الـ response بيرجع { success: true, data: [...messages] }
+            const apiMessages = res.data || [];
+
+            // بنحول الـ API messages للشكل اللي الـ UI بتستخدمه
+            const formattedMessages = apiMessages.map(msg => ({
+              id: msg.id,
+              sender: msg.sender_id === parseInt(chatId) ? 'them' : 'me',
+              text: msg.body || msg.message,
+              time: new Date(msg.created_at).toLocaleTimeString('en-US', { 
+                hour: '2-digit', minute: '2-digit' 
+              }),
+              seen: msg.is_read || false,
+            }));
+
+            setMessages(formattedMessages);
+
+            // بنعلم المحادثة مقروءة
+            await markAsRead(conversationId);
+          } catch (msgErr) {
+            console.log("No existing conversation or messages endpoint not available:", msgErr);
+            // لو مفيش conversation أو الـ endpoint مش شغال، نبدأ بمحادثة فاضية
+            setMessages([]);
+          }
+        } else {
+          // مفيش conversation قبل كده، بنبدأ فاضي
+          setMessages([]);
+        }
+
+        setError(null);
+      } catch (err) {
+        console.error("Error fetching conversation:", err);
+        setError(err.message || "Failed to load conversation");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMessages();
+  }, [chatId, conversationId]);
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const sendMessage = () => {
+  // ─── Send message ─────────────────────────────────────────
+  const handleSendMessage = async () => {
     const text = input.trim();
-    if (!text) return;
-    const now  = new Date();
+    if (!text || sending) return;
+
+    const now = new Date();
     const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    setMessages(prev => [...prev, { id: Date.now(), sender: 'me', text, time, seen: false }]);
+
+    // بنضيف الرسالة في الـ UI على طول (Optimistic UI)
+    const tempId = Date.now();
+    const newMessage = { 
+      id: tempId, 
+      sender: 'me', 
+      text, 
+      time, 
+      seen: false,
+      pending: true  // ← علامة إنها لسه بتتبعت
+    };
+
+    setMessages(prev => [...prev, newMessage]);
     setInput('');
+    setSending(true);
+
+    try {
+      // بنبعت للـ API
+      const res = await sendMessage(parseInt(chatId), text);
+
+      // لو نجحت، بنحدث الرسالة من pending لـ sent
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempId 
+          ? { 
+              ...msg, 
+              pending: false, 
+              seen: true,
+              id: res.data?.message?.id || tempId  // بنستخدم الـ ID الحقيقي من API
+            } 
+          : msg
+      ));
+
+      // بنحدث الـ conversationId لو هي أول رسالة
+      if (!conversationId && res.data?.conversation?.id) {
+        // هنا ممكن تستخدم navigate مع state جديد
+        // بس لحد ما نعرف الـ behavior الصح، هنسيبها كده
+      }
+
+    } catch (err) {
+      console.error("Error sending message:", err);
+      // لو فشلت، بنعلم الرسالة إنها failed
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempId ? { ...msg, pending: false, failed: true } : msg
+      ));
+      setError(err.message || "Failed to send message");
+    } finally {
+      setSending(false);
+    }
   };
 
   const handleKey = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      sendMessage();
+      handleSendMessage();
     }
   };
 
-  // Group messages by date label (simplified — all "TODAY" for mock)
+  // ─── Retry failed message ─────────────────────────────────
+  const retryMessage = async (msg) => {
+    if (!msg.failed) return;
+
+    // بنشيل الرسالة الفاشلة وبنبعتها تاني
+    setMessages(prev => prev.filter(m => m.id !== msg.id));
+    setInput(msg.text);
+  };
+
+  // Group messages by date label (simplified — all "TODAY" for now)
   const dateLabel = 'TODAY';
+
+  // ─── Loading State ────────────────────────────────────────
+  if (loading) {
+    return (
+      <div className="cc-page d-flex align-items-center justify-content-center">
+        <div className="text-center">
+          <div className="spinner-border text-primary" role="status">
+            <span className="visually-hidden">Loading...</span>
+          </div>
+          <p className="mt-3">Loading conversation...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="cc-page">
@@ -78,12 +178,12 @@ export default function ChatConversationPage() {
           <i className="bi bi-arrow-left" />
         </button>
         <div className="cc-doctor-info">
-          <div className="cc-doc-avatar">{convo.doctorInitials}</div>
+          <div className="cc-doc-avatar">{convoInfo.doctorInitials}</div>
           <div>
-            <div className="cc-doc-name">{convo.doctorName}</div>
-            <div className={`cc-doc-status ${convo.online ? 'online' : 'offline'}`}>
+            <div className="cc-doc-name">{convoInfo.doctorName}</div>
+            <div className={`cc-doc-status ${convoInfo.online ? 'online' : 'offline'}`}>
               <span className="cc-dot" />
-              {convo.online ? 'ONLINE' : 'OFFLINE'}
+              {convoInfo.online ? 'ONLINE' : 'OFFLINE'}
             </div>
           </div>
         </div>
@@ -100,6 +200,15 @@ export default function ChatConversationPage() {
         </div>
       </div>
 
+      {/* ── Error Alert ───────────────────────────── */}
+      {error && (
+        <div className="alert alert-danger alert-dismissible fade show m-3" role="alert">
+          <i className="bi bi-exclamation-triangle-fill me-2"></i>
+          {error}
+          <button type="button" className="btn-close" onClick={() => setError(null)}></button>
+        </div>
+      )}
+
       {/* ── Messages area ───────────────────────────── */}
       <div className="cc-messages">
         <div className="cc-date-label">{dateLabel}</div>
@@ -111,17 +220,29 @@ export default function ChatConversationPage() {
         {messages.map(msg => (
           <div key={msg.id} className={`cc-msg-row ${msg.sender === 'me' ? 'me' : 'them'}`}>
             {msg.sender === 'them' && (
-              <div className="cc-msg-avatar">{convo.doctorInitials}</div>
+              <div className="cc-msg-avatar">{convoInfo.doctorInitials}</div>
             )}
             <div className="cc-msg-block">
               <div className={`cc-bubble ${msg.sender === 'me' ? 'cc-bubble-me' : 'cc-bubble-them'}`}>
                 {msg.text}
+                {msg.pending && (
+                  <span className="ms-2">
+                    <div className="spinner-border spinner-border-sm" role="status" style={{ width: '12px', height: '12px' }}>
+                      <span className="visually-hidden">Sending...</span>
+                    </div>
+                  </span>
+                )}
+                {msg.failed && (
+                  <span className="ms-2 text-danger" title="Failed to send. Click to retry.">
+                    <i className="bi bi-exclamation-circle-fill" style={{ cursor: 'pointer' }} onClick={() => retryMessage(msg)}></i>
+                  </span>
+                )}
               </div>
               <div className="cc-msg-meta">
                 <span className="cc-msg-time">{msg.time}</span>
-                {msg.sender === 'me' && (
+                {msg.sender === 'me' && !msg.pending && !msg.failed && (
                   <span className="cc-seen-tick">
-                    <i className={`bi ${msg.seen ? 'bi-check2-all' : 'bi-check2'}`} />
+                    <i className={`bi ${msg.seen ? 'bi-check2-all text-primary' : 'bi-check2'}`} />
                   </span>
                 )}
               </div>
@@ -144,6 +265,7 @@ export default function ChatConversationPage() {
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKey}
           rows={1}
+          disabled={sending}
         />
         <div className="cc-input-icons">
           <button className="cc-icon-sm" title="Emoji">
@@ -154,12 +276,18 @@ export default function ChatConversationPage() {
           </button>
         </div>
         <button
-          className={`cc-send-btn ${input.trim() ? 'active' : ''}`}
-          onClick={sendMessage}
-          disabled={!input.trim()}
+          className={`cc-send-btn ${input.trim() && !sending ? 'active' : ''}`}
+          onClick={handleSendMessage}
+          disabled={!input.trim() || sending}
           title="Send"
         >
-          <i className="bi bi-send-fill" />
+          {sending ? (
+            <div className="spinner-border spinner-border-sm" role="status" style={{ width: '16px', height: '16px' }}>
+              <span className="visually-hidden">Sending...</span>
+            </div>
+          ) : (
+            <i className="bi bi-send-fill" />
+          )}
         </button>
       </div>
 

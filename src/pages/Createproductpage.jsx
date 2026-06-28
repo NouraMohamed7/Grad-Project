@@ -9,8 +9,9 @@ export default function CreateProductPage() {
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
   const [dragOver, setDragOver]     = useState(false);
-  const [images, setImages]         = useState([]);   // File objects
-  const [previews, setPreviews]     = useState([]);   // base64 strings
+  const [images, setImages]         = useState([]);
+  const [previews, setPreviews]     = useState([]);
+  const [errors, setErrors]         = useState({});
 
   const [form, setForm] = useState({
     name: '',
@@ -28,25 +29,33 @@ export default function CreateProductPage() {
     warranty: '',
     configuration: '',
     restock_date: '',
+    specification: [],
   });
 
-  // ── Load categories ──────────────────────────────────────────────
+  // ── Load categories ─────────────────────────────────────────────────
   useEffect(() => {
     getCategories()
       .then(data => setCategories(data.data || []))
       .catch(() => toast.error('Failed to load categories'));
   }, []);
 
-  // ── Field change ─────────────────────────────────────────────────
+  // ── Field change ───────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
+    }
   };
 
-  // ── Image handling ───────────────────────────────────────────────
+  // ── Image handling ─────────────────────────────────────────────────
   const addImages = (files) => {
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!validFiles.length) return;
+    if (!validFiles.length) {
+      toast.error('Please upload valid image files (JPG, PNG, WEBP)');
+      return;
+    }
     validFiles.forEach(file => {
       const reader = new FileReader();
       reader.onload = (ev) => setPreviews(prev => [...prev, ev.target.result]);
@@ -66,12 +75,30 @@ export default function CreateProductPage() {
     setPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ── Submit ───────────────────────────────────────────────────────
+  // ── Validation ─────────────────────────────────────────────────────
+  const validate = () => {
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Product name is required';
+    if (!form.category_id) newErrors.category_id = 'Please select a category';
+    if (!form.price || parseFloat(form.price) <= 0) newErrors.price = 'Valid price is required';
+    if (form.stock === '' || form.stock < 0) newErrors.stock = 'Valid stock quantity is required';
+
+    if (form.is_rentable) {
+      if (!form.price_daily || parseFloat(form.price_daily) <= 0) newErrors.price_daily = 'Daily rate is required for rental products';
+      if (!form.minimum_rental_days) newErrors.minimum_rental_days = 'Minimum rental days required';
+      if (!form.maximum_rental_days) newErrors.maximum_rental_days = 'Maximum rental days required';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = async () => {
-    if (!form.name.trim())   return toast.error('Product name is required');
-    if (!form.category_id)   return toast.error('Please select a category');
-    if (!form.price)         return toast.error('Price is required');
-    if (!form.stock && form.stock !== 0) return toast.error('Stock is required');
+    if (!validate()) {
+      toast.error('Please fix the highlighted errors');
+      return;
+    }
 
     setSubmitting(true);
     try {
@@ -80,14 +107,35 @@ export default function CreateProductPage() {
         is_rentable: form.is_rentable ? 1 : 0,
         images,
       };
+
+      // Add default specification if empty (API might require it)
+      if (!payload.specification || payload.specification.length === 0) {
+        payload.specification = [{ type: 'Standard' }];
+      }
+
       await createProduct(payload);
-      toast.success('Product created successfully!');
-      navigate('/products');
+      toast.success('📋 Product submitted! Awaiting admin approval.', { autoClose: 4000 });
+      setTimeout(() => navigate('/products'), 2000);
     } catch (err) {
       toast.error(err?.message || 'Failed to create product');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  // ── Button content ─────────────────────────────────────────────────
+  const btnContent = submitting
+    ? <><i className="bi bi-hourglass-split" /> Publishing...</>
+    : <><i className="bi bi-send" /> Publish Product</>;
+
+  // ── Error helper ───────────────────────────────────────────────────
+  const ErrorField = ({ name }) => {
+    if (!errors[name]) return null;
+    return (
+      <span style={{ color: '#dc2626', fontSize: 12, marginTop: 4, display: 'block' }}>
+        <i className="bi bi-exclamation-circle" /> {errors[name]}
+      </span>
+    );
   };
 
   return (
@@ -104,25 +152,36 @@ export default function CreateProductPage() {
       </div>
 
       {/* Header */}
-      <div className="page-header" style={{ marginBottom: 24 }}>
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div className="page-title"><h1>Create Product</h1></div>
         <div className="header-actions">
           <button className="btn-export" onClick={() => navigate('/products')} disabled={submitting}>
             Cancel
           </button>
           <button className="btn-add" onClick={handleSubmit} disabled={submitting}>
-            {submitting
-              ? <><i className="bi bi-hourglass-split" /> Publishing...</>
-              : <><i className="bi bi-send" /> Publish Product</>
-            }
+            {btnContent}
           </button>
         </div>
       </div>
 
-      <div className="form-card">
-        {/* ── General Info + Images ─────────────────────────────── */}
-        <div className="form-two-col">
+      {/* Notice */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 10,
+        background: '#fffbeb', border: '1.5px solid #fde68a',
+        borderRadius: 10, padding: '12px 16px', marginBottom: 20,
+        fontSize: 13, color: '#92400e',
+      }}>
+        <i className="bi bi-info-circle-fill" style={{ fontSize: 16, color: '#d97706', flexShrink: 0 }} />
+        <span>
+          After submission, your product will be <strong>reviewed by admin</strong> before
+          appearing to doctors. You can track its status in the Products page.
+        </span>
+      </div>
 
+      {/* Form Card */}
+      <div className="form-card">
+
+        <div className="form-two-col">
           {/* LEFT: General Info */}
           <div>
             <div className="section-heading">
@@ -132,22 +191,23 @@ export default function CreateProductPage() {
 
             <div className="form-group">
               <label className="form-label">Product Name *</label>
-              <input
-                className="form-input"
-                name="name"
+              <input 
+                className={`form-input ${errors.name ? 'is-invalid' : ''}`} 
+                name="name" 
                 value={form.name}
-                onChange={handleChange}
-                placeholder="e.g. Digital Stethoscope X2"
+                onChange={handleChange} 
+                placeholder="e.g. Digital Stethoscope X2" 
               />
+              <ErrorField name="name" />
             </div>
 
             <div className="form-row-2">
               <div className="form-group">
                 <label className="form-label">Category *</label>
-                <select
-                  className="form-input form-select"
+                <select 
+                  className={`form-input form-select ${errors.category_id ? 'is-invalid' : ''}`} 
                   name="category_id"
-                  value={form.category_id}
+                  value={form.category_id} 
                   onChange={handleChange}
                 >
                   <option value="">Select Category</option>
@@ -155,15 +215,16 @@ export default function CreateProductPage() {
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>
+                <ErrorField name="category_id" />
               </div>
               <div className="form-group">
                 <label className="form-label">Warranty</label>
-                <input
-                  className="form-input"
-                  name="warranty"
+                <input 
+                  className="form-input" 
+                  name="warranty" 
                   value={form.warranty}
-                  onChange={handleChange}
-                  placeholder="e.g. 2 Years"
+                  onChange={handleChange} 
+                  placeholder="e.g. 2 Years Manufacturer Warranty" 
                 />
               </div>
             </div>
@@ -171,85 +232,86 @@ export default function CreateProductPage() {
             <div className="form-row-2">
               <div className="form-group">
                 <label className="form-label">Price ($) *</label>
-                <input
-                  className="form-input"
-                  name="price"
+                <input 
+                  className={`form-input ${errors.price ? 'is-invalid' : ''}`} 
+                  name="price" 
                   value={form.price}
-                  onChange={handleChange}
-                  placeholder="0.00"
-                  type="number"
-                  min="0"
+                  onChange={handleChange} 
+                  placeholder="0.00" 
+                  type="number" 
+                  min="0" 
                 />
+                <ErrorField name="price" />
               </div>
               <div className="form-group">
                 <label className="form-label">Stock Quantity *</label>
-                <input
-                  className="form-input"
-                  name="stock"
+                <input 
+                  className={`form-input ${errors.stock ? 'is-invalid' : ''}`} 
+                  name="stock" 
                   value={form.stock}
-                  onChange={handleChange}
-                  placeholder="0"
-                  type="number"
-                  min="0"
+                  onChange={handleChange} 
+                  placeholder="0" 
+                  type="number" 
+                  min="0" 
                 />
+                <ErrorField name="stock" />
               </div>
             </div>
 
             <div className="form-row-2">
               <div className="form-group">
                 <label className="form-label">Setup Duration</label>
-                <input
-                  className="form-input"
-                  name="setup_duration"
+                <input 
+                  className="form-input" 
+                  name="setup_duration" 
                   value={form.setup_duration}
-                  onChange={handleChange}
-                  placeholder="e.g. 15min"
+                  onChange={handleChange} 
+                  placeholder="e.g. 15min" 
                 />
               </div>
               <div className="form-group">
                 <label className="form-label">Restock Date</label>
-                <input
-                  className="form-input"
-                  name="restock_date"
+                <input 
+                  className="form-input" 
+                  name="restock_date" 
                   value={form.restock_date}
-                  onChange={handleChange}
-                  type="date"
+                  onChange={handleChange} 
+                  type="date" 
                 />
               </div>
             </div>
 
             <div className="form-group">
               <label className="form-label">Configuration / Box Contents</label>
-              <input
-                className="form-input"
-                name="configuration"
+              <input 
+                className="form-input" 
+                name="configuration" 
                 value={form.configuration}
-                onChange={handleChange}
-                placeholder="e.g. 1x Device, 2x Batteries, 1x Manual"
+                onChange={handleChange} 
+                placeholder="e.g. 1x Device, 2x Batteries, 1x Manual" 
               />
             </div>
 
             <div className="form-group">
               <label className="form-label">Description</label>
-              <textarea
-                className="form-input form-textarea"
+              <textarea 
+                className="form-input form-textarea" 
                 name="description"
-                value={form.description}
+                value={form.description} 
                 onChange={handleChange}
-                placeholder="Detailed product description..."
-                rows={5}
+                placeholder="Detailed product description..." 
+                rows={5} 
               />
             </div>
           </div>
 
-          {/* RIGHT: Images */}
+          {/* RIGHT: Image */}
           <div>
             <div className="section-heading">
               <div className="section-icon blue"><i className="bi bi-image-fill" /></div>
-              Product Images
+              Product Image
             </div>
 
-            {/* Dropzone */}
             <div
               className={`dropzone ${dragOver ? 'dragover' : ''}`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
@@ -257,42 +319,33 @@ export default function CreateProductPage() {
               onDrop={handleDrop}
               onClick={() => document.getElementById('createFileInput').click()}
             >
-              <input
-                id="createFileInput"
-                type="file"
-                accept="image/*"
+              <input 
+                id="createFileInput" 
+                type="file" 
+                accept="image/*" 
                 multiple
-                style={{ display: 'none' }}
-                onChange={(e) => addImages(e.target.files)}
+                style={{ display: 'none' }} 
+                onChange={(e) => addImages(e.target.files)} 
               />
               <div className="dropzone-inner">
                 <div className="dropzone-icon"><i className="bi bi-cloud-arrow-up" /></div>
                 <div className="dropzone-text">
-                  <span className="dropzone-link">Upload files</span> or drag and drop
+                  <span className="dropzone-link">Upload a file</span> or drag and drop
                 </div>
                 <div className="dropzone-hint">PNG, JPG, GIF up to 10MB — multiple allowed</div>
               </div>
             </div>
 
-            {/* Previews */}
             {previews.length > 0 && (
               <div className="current-images-grid" style={{ marginTop: 16 }}>
                 {previews.map((src, i) => (
-                  <div
-                    key={i}
-                    className="current-image-wrap"
-                    style={{ background: '#f3f4f6', position: 'relative' }}
-                  >
+                  <div key={i} className="current-image-wrap"
+                    style={{ background: '#f3f4f6', position: 'relative' }}>
                     {i === 0 && <span className="img-main-badge">Main</span>}
-                    <img
-                      src={src}
-                      alt={`preview-${i}`}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
-                    />
-                    <button
-                      className="img-delete-btn"
-                      onClick={(e) => { e.stopPropagation(); removeImage(i); }}
-                    >
+                    <img src={src} alt={`preview-${i}`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                    <button className="img-delete-btn"
+                      onClick={(e) => { e.stopPropagation(); removeImage(i); }}>
                       <i className="bi bi-trash3-fill" />
                     </button>
                   </div>
@@ -302,7 +355,7 @@ export default function CreateProductPage() {
           </div>
         </div>
 
-        {/* ── Rental Options ─────────────────────────────────────── */}
+        {/* Rental Options */}
         <div className="rental-section">
           <div className="rental-header">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -315,12 +368,8 @@ export default function CreateProductPage() {
               </div>
             </div>
             <label className="toggle-switch">
-              <input
-                type="checkbox"
-                name="is_rentable"
-                checked={form.is_rentable}
-                onChange={handleChange}
-              />
+              <input type="checkbox" name="is_rentable"
+                checked={form.is_rentable} onChange={handleChange} />
               <span className="toggle-slider" />
             </label>
           </div>
@@ -328,26 +377,27 @@ export default function CreateProductPage() {
           {form.is_rentable && (
             <div className="rental-fields">
               {[
-                { label: 'DAILY RATE',       name: 'price_daily',          prefix: '$', placeholder: '0.00' },
-                { label: 'MIN DAYS',         name: 'minimum_rental_days',  prefix: '',  placeholder: '1' },
-                { label: 'MAX DAYS',         name: 'maximum_rental_days',  prefix: '',  placeholder: '30' },
-                { label: 'AVAILABLE UNITS',  name: 'available_units',      prefix: '',  placeholder: '0' },
-                { label: 'PREP DURATION',    name: 'preparation_duration', prefix: '',  placeholder: '0min' },
+                { label: 'DAILY RATE',      name: 'price_daily',          prefix: '$', placeholder: '0.00', error: errors.price_daily },
+                { label: 'MIN DAYS',        name: 'minimum_rental_days',  prefix: '',  placeholder: '1',    error: errors.minimum_rental_days },
+                { label: 'MAX DAYS',        name: 'maximum_rental_days',  prefix: '',  placeholder: '30',   error: errors.maximum_rental_days },
+                { label: 'AVAILABLE UNITS', name: 'available_units',      prefix: '',  placeholder: '0' },
+                { label: 'PREP DURATION',   name: 'preparation_duration', prefix: '',  placeholder: '0min' },
               ].map(f => (
                 <div key={f.name} className="rental-field">
                   <label className="rental-label">{f.label}</label>
                   <div className="rental-input-wrap">
                     {f.prefix && <span className="rental-prefix">{f.prefix}</span>}
                     <input
-                      className={`form-input rental-input ${f.prefix ? 'has-prefix' : ''}`}
-                      name={f.name}
-                      value={form[f.name]}
+                      className={`form-input rental-input ${f.prefix ? 'has-prefix' : ''} ${f.error ? 'is-invalid' : ''}`}
+                      name={f.name} 
+                      value={form[f.name]} 
                       onChange={handleChange}
                       placeholder={f.placeholder}
-                      type={f.prefix === '$' ? 'number' : 'text'}
+                      type={f.prefix === '$' ? 'number' : 'text'} 
                       min="0"
                     />
                   </div>
+                  {f.error && <span style={{ color: '#dc2626', fontSize: 11, marginTop: 3 }}>{f.error}</span>}
                 </div>
               ))}
             </div>
@@ -360,12 +410,10 @@ export default function CreateProductPage() {
             Cancel
           </button>
           <button className="btn-add" onClick={handleSubmit} disabled={submitting}>
-            {submitting
-              ? <><i className="bi bi-hourglass-split" /> Publishing...</>
-              : <><i className="bi bi-send" /> Publish Product</>
-            }
+            {btnContent}
           </button>
         </div>
+
       </div>
     </div>
   );

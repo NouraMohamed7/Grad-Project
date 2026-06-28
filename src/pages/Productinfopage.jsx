@@ -2,146 +2,75 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProductById, updateProduct, deleteProduct, getCategories } from '../apis/Products';
+import { getProductById, getCategories, deleteProduct } from '../apis/Products';
 
+// Status map — keys match API values exactly
 const statusConfig = {
-  create_pending:  { label: 'PENDING',  badgeBg: '#fffbeb', badgeColor: '#d97706', dot: '#d97706' },
-  create_accepted: { label: 'ACTIVE',   badgeBg: '#f0fdf4', badgeColor: '#16a34a', dot: '#16a34a' },
-  create_rejected: { label: 'REJECTED', badgeBg: '#fef2f2', badgeColor: '#dc2626', dot: '#dc2626' },
+  create_pending:  { label: 'PENDING',      badgeBg: '#fffbeb', badgeColor: '#d97706', dot: '#d97706' },
+  create_accepted: { label: 'ACTIVE',       badgeBg: '#f0fdf4', badgeColor: '#16a34a', dot: '#16a34a' },
+  create_rejected: { label: 'REJECTED',     badgeBg: '#fef2f2', badgeColor: '#dc2626', dot: '#dc2626' },
+  edit_pending:    { label: 'EDIT REVIEW',  badgeBg: '#fffbeb', badgeColor: '#d97706', dot: '#d97706' },
+  edit_accepted:   { label: 'UPDATED',      badgeBg: '#f0fdf4', badgeColor: '#16a34a', dot: '#16a34a' },
+  edit_rejected:   { label: 'EDIT REJECTED',badgeBg: '#fef2f2', badgeColor: '#dc2626', dot: '#dc2626' },
 };
-const getStatusCfg = (s) => statusConfig[s] || { label: 'UNKNOWN', badgeBg: '#f3f4f6', badgeColor: '#6b7280', dot: '#9ca3af' };
-
-function ConfirmDialog({ title, message, onConfirm, onCancel }) {
-  return (
-    <>
-      <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.5)', backdropFilter: 'blur(4px)', zIndex: 9998 }} onClick={onCancel} />
-      <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', background: '#fff', borderRadius: 16, padding: '28px 28px 24px', width: 400, maxWidth: '92vw', boxShadow: '0 24px 80px rgba(0,0,0,0.16)', zIndex: 9999, animation: 'slideUpDialog 0.22s cubic-bezier(0.16,1,0.3,1)' }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-          <i className="bi bi-trash3-fill" style={{ fontSize: 20, color: '#dc2626' }} />
-        </div>
-        <div style={{ fontWeight: 700, fontSize: 16, color: '#111827', marginBottom: 8 }}>{title}</div>
-        <div style={{ fontSize: 13.5, color: '#6b7280', lineHeight: 1.65, marginBottom: 24 }}>{message}</div>
-        <div style={{ height: 1, background: '#f3f4f6', margin: '0 -28px 18px' }} />
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-          <button onClick={onCancel} style={{ padding: '8px 18px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', cursor: 'pointer', fontSize: 13.5, fontWeight: 500, fontFamily: 'DM Sans,sans-serif' }}>Cancel</button>
-          <button onClick={onConfirm} style={{ padding: '8px 18px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6, fontFamily: 'DM Sans,sans-serif' }}>
-            <i className="bi bi-trash3" /> Delete
-          </button>
-        </div>
-      </div>
-    </>
-  );
-}
+const getStatusCfg = (s) =>
+  statusConfig[s] || { label: s || 'UNKNOWN', badgeBg: '#f3f4f6', badgeColor: '#6b7280', dot: '#9ca3af' };
 
 const Skel = ({ h = 38, w = '100%', mb = 14 }) => (
-  <div style={{ height: h, borderRadius: 9, background: '#f0f2f5', width: w, marginBottom: mb, animation: 'pulse 1.5s ease-in-out infinite' }} />
+  <div style={{
+    height: h, borderRadius: 9, background: '#f0f2f5',
+    width: w, marginBottom: mb,
+    animation: 'pulse 1.5s ease-in-out infinite',
+  }} />
 );
 
 export default function ProductInfoPage() {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id }   = useParams();
 
-  const [loading, setLoading]       = useState(true);
-  const [saving, setSaving]         = useState(false);
-  const [deleting, setDeleting]     = useState(false);
+  const [loading,    setLoading]    = useState(true);
   const [categories, setCategories] = useState([]);
-  const [product, setProduct]       = useState(null);
-  const [confirm, setConfirm]       = useState(false);
-  const [originalForm, setOriginalForm] = useState({});
-
-  const [form, setForm] = useState({
-    name: '', category_id: '', discount_code: '',
-    price: '', stock: '', description: '',
-    is_rentable: false,
-    price_daily: '', deposit: '', setup_fee: '',
-    available_units: '', minimum_rental_days: '', maximum_rental_days: '',
-    preparation_duration: '',
-    warranty: '', configuration: '',
-    setup_duration: '', restock_date: '',
-  });
-
-  const [existingImages, setExistingImages] = useState([]);
-  const [newImages, setNewImages]           = useState([]);
-  const [newPreviews, setNewPreviews]       = useState([]);
-  const [dragOver, setDragOver]             = useState(false);
+  const [product,    setProduct]    = useState(null);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleting,   setDeleting]   = useState(false);
 
   useEffect(() => {
     if (!id) return;
     Promise.all([getProductById(id), getCategories()])
       .then(([pRes, cRes]) => {
         setCategories(cRes.data || []);
-        const p = pRes.data || pRes;
-        setProduct(p);
-        setExistingImages(p.image || []);
-        const rental = p.rental_details || {};
-        const d = {
-          name: p.name || '', category_id: p.category_id || '',
-          discount_code: p.discount_code || '',
-          price: p.price || '', stock: p.stock ?? '',
-          description: p.description || '',
-          is_rentable: !!p.is_rentable,
-          price_daily: rental.price_daily || p.price_daily || '',
-          deposit: rental.deposit || p.deposit || '',
-          setup_fee: rental.setup_fee || p.setup_fee || '',
-          available_units: rental.available_units ?? p.available_units ?? '',
-          minimum_rental_days: rental.minimum_rental_days || p.minimum_rental_days || '',
-          maximum_rental_days: rental.maximum_rental_days || p.maximum_rental_days || '',
-          preparation_duration: rental.preparation_duration || p.preparation_duration || '',
-          warranty: p.warranty || '', configuration: p.configuration || '',
-          setup_duration: p.setup_duration || '', restock_date: p.restock_date || '',
-        };
-        setForm(d); setOriginalForm(d);
+        // API: { success, message, data: { ... } }
+        setProduct(pRes.data || pRes);
       })
-      .catch(err => { toast.error(err?.message || 'Failed to load product'); navigate('/products'); })
+      .catch(err => {
+        toast.error(err?.message || 'Failed to load product');
+        navigate('/products');
+      })
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
-  };
+  const statusCfg    = getStatusCfg(product?.status);
+  const categoryName =
+    categories.find(c => c.id === product?.category_id)?.name ||
+    (product?.category_id ? `Category #${product.category_id}` : '—');
 
-  const addImages = (files) => {
-    const valid = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!valid.length) return;
-    valid.forEach(f => { const r = new FileReader(); r.onload = ev => setNewPreviews(p => [...p, ev.target.result]); r.readAsDataURL(f); });
-    setNewImages(p => [...p, ...valid]);
-  };
-
-  const handleSave = async () => {
-    if (!form.name.trim()) return toast.error('Product name is required');
-    const changed = {};
-    Object.keys(form).forEach(k => {
-      const nv = k === 'is_rentable' ? (form[k] ? 1 : 0) : form[k];
-      const ov = k === 'is_rentable' ? (originalForm[k] ? 1 : 0) : originalForm[k];
-      if (String(nv) !== String(ov)) changed[k] = nv;
-    });
-    if (Object.keys(changed).length === 0 && newImages.length === 0) return toast.info('No changes detected');
-    setSaving(true);
-    try {
-      await updateProduct(id, { ...changed, images: newImages }, originalForm);
-      toast.success('Product updated successfully!');
-      const pRes = await getProductById(id);
-      const p = pRes.data || pRes;
-      setProduct(p); setExistingImages(p.image || []);
-      setNewImages([]); setNewPreviews([]);
-      setOriginalForm(form);
-    } catch (err) { toast.error(err?.message || 'Failed to save'); }
-    finally { setSaving(false); }
-  };
-
+  // ── Delete ────────────────────────────────────────────────────────────
   const handleDelete = async () => {
-    setConfirm(false); setDeleting(true);
-    try { await deleteProduct(id); toast.success('Product deleted'); navigate('/products'); }
-    catch (err) { toast.error(err?.message || 'Failed to delete'); setDeleting(false); }
+    setDeleting(true);
+    try {
+      await deleteProduct(id);
+      toast.success('Product deleted successfully');
+      navigate('/products');
+    } catch (err) {
+      toast.error(err?.message || 'Failed to delete product');
+    } finally {
+      setDeleting(false);
+      setShowDelete(false);
+    }
   };
-
-  const statusCfg = getStatusCfg(product?.status);
 
   return (
     <div className="dashboard-content" style={{ animation: 'fadeInPage 0.3s ease both' }}>
-
-      {confirm && <ConfirmDialog title="Delete Product" message={`Permanently delete "${product?.name}"? This cannot be undone.`} onConfirm={handleDelete} onCancel={() => setConfirm(false)} />}
 
       {/* Breadcrumb */}
       <div className="breadcrumb-row">
@@ -158,51 +87,45 @@ export default function ProductInfoPage() {
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             Product Info
             {!loading && product && (
-              <span style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                background: statusCfg.badgeBg, color: statusCfg.badgeColor,
-                border: `1.5px solid ${statusCfg.badgeColor}44`,
-                borderRadius: 20, fontSize: 11, fontWeight: 700,
-                padding: '4px 12px', letterSpacing: '0.05em',
-              }}>
+              <span
+                className="pinfo-status-pill"
+                style={{
+                  background: statusCfg.badgeBg,
+                  color:      statusCfg.badgeColor,
+                  border:     `1.5px solid ${statusCfg.badgeColor}44`,
+                }}
+              >
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: statusCfg.dot }} />
+                {/* Raw status value shown in badge */}
                 {statusCfg.label}
               </span>
             )}
           </h1>
+          {!loading && product && (
+            <p style={{ fontSize: 12, color: '#9ca3af', margin: '2px 0 0' }}>
+              Status from API: <code style={{ fontSize: 11 }}>{product.status}</code>
+            </p>
+          )}
         </div>
         <div className="header-actions">
-          <button
-            style={{
-              padding: '8px 18px', borderRadius: 9, border: 'none',
-              background: '#dc2626', color: 'white', cursor: deleting || loading ? 'not-allowed' : 'pointer',
-              fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6,
-              fontFamily: 'DM Sans,sans-serif', opacity: deleting || loading ? 0.6 : 1,
-              transition: 'all 0.15s',
-            }}
-            onClick={() => !deleting && !loading && setConfirm(true)}
-            onMouseEnter={e => { if (!deleting && !loading) e.currentTarget.style.background = '#b91c1c'; }}
-            onMouseLeave={e => e.currentTarget.style.background = '#dc2626'}
-          >
-            {deleting ? <><i className="bi bi-hourglass-split spin" /> Deleting...</> : <><i className="bi bi-trash3-fill" /> Delete</>}
+          <button className="btn-delete-header" onClick={() => setShowDelete(true)} disabled={loading}>
+            <i className="bi bi-trash3-fill" /> Delete
           </button>
         </div>
       </div>
 
       {/* Main Card */}
       <div className="form-card">
-
         {loading ? (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 32 }}>
             <div><Skel h={14} w={180} mb={20} /><Skel /><Skel /><Skel /><Skel h={100} /></div>
             <div><Skel h={14} w={140} mb={20} /><Skel h={100} /><Skel h={100} /></div>
           </div>
-        ) : (
+        ) : product ? (
           <>
-            {/* ══ General Info + Images ══ */}
-            <div className="pinfo-two-col">
+            <div className="form-two-col">
 
-              {/* LEFT */}
+              {/* LEFT — General Info */}
               <div>
                 <div className="section-heading">
                   <div className="section-icon blue"><i className="bi bi-info-circle-fill" /></div>
@@ -211,100 +134,101 @@ export default function ProductInfoPage() {
 
                 <div className="form-group">
                   <label className="form-label">Product Name</label>
-                  <input className="form-input" name="name" value={form.name} onChange={handleChange} placeholder="Product name" />
+                  <input className="form-input" value={product.name || ''} disabled readOnly />
                 </div>
 
                 <div className="form-row-2">
                   <div className="form-group">
                     <label className="form-label">Category</label>
-                    <select className="form-input form-select" name="category_id" value={form.category_id} onChange={handleChange}>
-                      <option value="">Select Category</option>
-                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
+                    <input className="form-input" value={categoryName} disabled readOnly />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Discount Code</label>
-                    <div style={{ position: 'relative' }}>
-                      <i className="bi bi-tag" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af', fontSize: 13, pointerEvents: 'none' }} />
-                      <input className="form-input" name="discount_code" value={form.discount_code} onChange={handleChange} placeholder="e.g. MED-OFF-10" style={{ paddingLeft: 30 }} />
-                    </div>
+                    <label className="form-label">Warranty</label>
+                    <input className="form-input" value={product.warranty || 'N/A'} disabled readOnly />
                   </div>
                 </div>
 
                 <div className="form-row-2">
                   <div className="form-group">
                     <label className="form-label">Price ($)</label>
-                    <input className="form-input" name="price" value={form.price} onChange={handleChange} type="number" min="0" placeholder="0.00" />
+                    <input
+                      className="form-input"
+                      value={parseFloat(product.price || 0).toLocaleString()}
+                      disabled readOnly
+                    />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Stock Quantity</label>
-                    <input className="form-input" name="stock" value={form.stock} onChange={handleChange} type="number" min="0" placeholder="0" />
+                    <input
+                      className="form-input"
+                      value={`${product.stock ?? 0} units`}
+                      disabled readOnly
+                      style={{
+                        fontWeight: 600,
+                        color: product.stock === 0 ? '#dc2626' : product.stock < 10 ? '#d97706' : undefined,
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row-2">
+                  <div className="form-group">
+                    <label className="form-label">Setup Duration</label>
+                    <input className="form-input" value={product.setup_duration || 'N/A'} disabled readOnly />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Restock Date</label>
+                    <input className="form-input" value={product.restock_date || 'N/A'} disabled readOnly />
                   </div>
                 </div>
 
                 <div className="form-group">
+                  <label className="form-label">Configuration / Box Contents</label>
+                  <input className="form-input" value={product.configuration || 'N/A'} disabled readOnly />
+                </div>
+
+                <div className="form-group">
                   <label className="form-label">Description</label>
-                  <textarea className="form-input form-textarea" name="description" value={form.description} onChange={handleChange} rows={5} placeholder="Detailed product description..." />
+                  <textarea
+                    className="form-input form-textarea"
+                    value={product.description || 'No description provided.'}
+                    disabled readOnly rows={5}
+                    style={{ resize: 'none' }}
+                  />
                 </div>
               </div>
 
-              {/* RIGHT: Images */}
+              {/* RIGHT — Images */}
               <div>
                 <div className="section-heading">
                   <div className="section-icon blue"><i className="bi bi-images" /></div>
-                  Current Images
+                  Product Images
                 </div>
 
-                {existingImages.length > 0 ? (
-                  <div className="current-images-grid" style={{ marginBottom: 14 }}>
-                    {existingImages.map((img, i) => (
-                      <div key={img.id || i} className="current-image-wrap" style={{ background: '#f3f4f6', height: 100 }}>
+                {product.image && product.image.length > 0 ? (
+                  <div className="current-images-grid">
+                    {product.image.map((img, i) => (
+                      <div key={img.id || i} className="current-image-wrap" style={{ background: '#f3f4f6' }}>
                         {i === 0 && <span className="img-main-badge">Main</span>}
-                        <img src={img.image} alt={`img-${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 9 }} onError={e => { e.target.src = 'https://placehold.co/100x100?text=No'; }} />
-                        <button className="img-delete-btn" onClick={() => setExistingImages(p => p.filter((_, x) => x !== i))}>
-                          <i className="bi bi-trash3-fill" />
-                        </button>
+                        <img
+                          src={img.image}
+                          alt={`img-${i}`}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
+                          onError={e => { e.target.src = 'https://placehold.co/100x100?text=No'; }}
+                        />
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div style={{ height: 90, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8f9fb', borderRadius: 10, border: '1.5px dashed #e0e3e8', marginBottom: 14 }}>
-                    <span style={{ fontSize: 12.5, color: '#9ca3af' }}>No images uploaded</span>
-                  </div>
-                )}
-
-                <div className={`dropzone${dragOver ? ' dragover' : ''}`} style={{ height: 120 }}
-                  onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                  onDragLeave={() => setDragOver(false)}
-                  onDrop={e => { e.preventDefault(); setDragOver(false); addImages(e.dataTransfer.files); }}
-                  onClick={() => document.getElementById('piFileInput').click()}
-                >
-                  <input id="piFileInput" type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => addImages(e.target.files)} />
-                  <div className="dropzone-inner">
-                    <div className="dropzone-icon" style={{ fontSize: 22, marginBottom: 6 }}><i className="bi bi-cloud-arrow-up" /></div>
-                    <div className="dropzone-text" style={{ fontSize: 12 }}><span className="dropzone-link">Upload files</span> or drag and drop</div>
-                    <div className="dropzone-hint">PNG, JPG, WEBP up to 5MB</div>
-                  </div>
-                </div>
-
-                {newPreviews.length > 0 && (
-                  <div className="current-images-grid" style={{ marginTop: 10 }}>
-                    {newPreviews.map((src, i) => (
-                      <div key={i} className="current-image-wrap" style={{ background: '#f3f4f6', height: 100 }}>
-                        <span className="img-main-badge" style={{ background: '#2563eb' }}>New</span>
-                        <img src={src} alt={`new-${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 9 }} />
-                        <button className="img-delete-btn" onClick={e => { e.stopPropagation(); setNewImages(p => p.filter((_, x) => x !== i)); setNewPreviews(p => p.filter((_, x) => x !== i)); }}>
-                          <i className="bi bi-trash3-fill" />
-                        </button>
-                      </div>
-                    ))}
+                  <div className="pinfo-no-images">
+                    <span>No images uploaded</span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* ══ Rental Options ══ */}
-            <div className="rental-section" style={{ marginBottom: 28 }}>
+            {/* Rental Options */}
+            <div className="rental-section">
               <div className="rental-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div className="section-icon blue" style={{ width: 36, height: 36, fontSize: 16 }}>
@@ -312,108 +236,150 @@ export default function ProductInfoPage() {
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1d23' }}>Rental Options</div>
-                    <div style={{ fontSize: 12, color: '#9ca3af' }}>Configure rental pricing and availability</div>
+                    <div style={{ fontSize: 12.5, color: '#9ca3af' }}>Rental pricing and availability</div>
                   </div>
                 </div>
                 <label className="toggle-switch">
-                  <input type="checkbox" name="is_rentable" checked={form.is_rentable} onChange={handleChange} />
+                  <input type="checkbox" checked={!!product.is_rentable} disabled readOnly />
                   <span className="toggle-slider" />
                 </label>
               </div>
 
-              {form.is_rentable && (
+              {product.is_rentable && (
                 <div className="rental-fields">
                   {[
-                    { label: 'DAILY RATE', name: 'price_daily',         prefix: '$', ph: '500' },
-                    { label: 'DEPOSIT',    name: 'deposit',             prefix: '$', ph: '5000' },
-                    { label: 'SETUP FEE',  name: 'setup_fee',           prefix: '$', ph: '1000' },
-                    { label: 'UNITS',      name: 'available_units',     prefix: '',  ph: '2' },
-                    { label: 'MIN DAYS',   name: 'minimum_rental_days', prefix: '',  ph: '7' },
-                    { label: 'MAX DAYS',   name: 'maximum_rental_days', prefix: '',  ph: '365' },
+                    { label: 'DAILY RATE',      value: product.rental_details?.price_daily        ? `$${product.rental_details.price_daily}` : 'N/A' },
+                    { label: 'MIN DAYS',        value: product.rental_details?.minimum_rental_days ?? 'N/A' },
+                    { label: 'MAX DAYS',        value: product.rental_details?.maximum_rental_days ?? 'N/A' },
+                    { label: 'AVAILABLE UNITS', value: product.rental_details?.available_units     ?? 'N/A' },
+                    { label: 'PREP DURATION',   value: product.rental_details?.preparation_duration ?? 'N/A' },
                   ].map(f => (
-                    <div key={f.name} className="rental-field">
+                    <div key={f.label} className="rental-field">
                       <label className="rental-label">{f.label}</label>
                       <div className="rental-input-wrap">
-                        {f.prefix && <span className="rental-prefix">{f.prefix}</span>}
-                        <input className={`form-input rental-input${f.prefix ? ' has-prefix' : ''}`} name={f.name} value={form[f.name]} onChange={handleChange} placeholder={f.ph} type={f.prefix === '$' ? 'number' : 'text'} min="0" />
+                        <input className="form-input rental-input" value={f.value} disabled readOnly />
                       </div>
                     </div>
                   ))}
-                  <div style={{ width: '100%', marginTop: 6, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                    <label style={{ fontSize: 13, color: '#374151', fontWeight: 500, whiteSpace: 'nowrap' }}>Preparation Duration:</label>
-                    <input className="form-input" name="preparation_duration" value={form.preparation_duration} onChange={handleChange} placeholder="48" style={{ width: 80 }} type="number" min="0" />
-                    <span style={{ fontSize: 13, color: '#6b7280' }}>hours (for cleaning &amp; checks)</span>
-                  </div>
                 </div>
               )}
             </div>
 
-            {/* ══ Technical Details ══ */}
-            <div style={{ borderTop: '1px solid #f0f2f5', paddingTop: 24, marginBottom: 8 }}>
-              <div className="section-heading">
-                <div className="section-icon blue"><i className="bi bi-cpu-fill" /></div>
-                Technical Details
-              </div>
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label className="form-label">Warranty Information</label>
-                  <input className="form-input" name="warranty" value={form.warranty} onChange={handleChange} placeholder="e.g. 3 years full service and parts replacement." />
+            {/* Specifications */}
+            {product.specification && product.specification.length > 0 && (
+              <>
+                <div className="section-heading" style={{ marginTop: 24 }}>
+                  <div className="section-icon blue"><i className="bi bi-cpu-fill" /></div>
+                  Specifications
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Configuration / Box Contents</label>
-                  <input className="form-input" name="configuration" value={form.configuration} onChange={handleChange} placeholder="e.g. 1x MRI Unit, 1x Control Station, 2x Patient Coils" />
+                <div className="pinfo-spec-box">
+                  {product.specification.map((spec, i) =>
+                    Object.entries(spec).map(([key, value]) => (
+                      <div key={`${i}-${key}`} className="pinfo-spec-row">
+                        <span className="pinfo-spec-key">{key}</span>
+                        <span className="pinfo-spec-value">{value}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
-              </div>
-              <div className="form-row-2">
-                <div className="form-group">
-                  <label className="form-label">Setup Duration</label>
-                  <input className="form-input" name="setup_duration" value={form.setup_duration} onChange={handleChange} placeholder="e.g. 30min" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Restock Date</label>
-                  <input className="form-input" name="restock_date" value={form.restock_date} onChange={handleChange} type="date" />
-                </div>
-              </div>
-            </div>
+              </>
+            )}
 
             {/* Bottom actions */}
             <div className="form-actions">
-              <button className="btn-export" onClick={() => navigate('/products')} disabled={saving}>
+              <button className="btn-export" onClick={() => navigate('/products')}>
                 <i className="bi bi-arrow-left" /> Back
               </button>
               {product?.status === 'create_rejected' && (
-                <button className="btn-export" style={{ color: '#d97706', borderColor: '#fde68a', background: '#fffbeb' }} onClick={() => navigate(`/products/rejection/${id}`)}>
+                <button
+                  className="btn-export"
+                  style={{ color: '#d97706', borderColor: '#fde68a', background: '#fffbeb' }}
+                  onClick={() => navigate(`/products/rejection/${id}`)}
+                >
                   <i className="bi bi-arrow-repeat" /> View Rejection
                 </button>
               )}
-              <button className="btn-add" onClick={handleSave} disabled={saving}
-                style={{ background: '#16a34a' }}
-                onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
-                onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
-              >
-                {saving ? <><i className="bi bi-hourglass-split spin" /> Saving...</> : <><i className="bi bi-floppy-fill" /> Save Changes</>}
+              <button className="btn-add" onClick={() => navigate(`/products/edit/${id}`)}>
+                <i className="bi bi-pencil" /> Edit Product
               </button>
             </div>
           </>
+        ) : (
+          <div style={{ textAlign: 'center', padding: 40 }}>
+            <i className="bi bi-exclamation-circle" style={{ fontSize: 32, color: '#9ca3af', display: 'block', marginBottom: 12 }} />
+            <p style={{ color: '#6b7280', fontSize: 14 }}>Product not found.</p>
+            <button className="btn-add" onClick={() => navigate('/products')} style={{ marginTop: 16 }}>
+              Back to Products
+            </button>
+          </div>
         )}
       </div>
 
+      {/* Delete confirmation dialog */}
+      {showDelete && (
+        <>
+          <div className="dialog-backdrop" onClick={() => !deleting && setShowDelete(false)} />
+          <div className="dialog-box">
+            <div className="dialog-icon-wrap">
+              <i className="bi bi-trash3-fill dialog-icon" />
+            </div>
+            <div className="dialog-title">Delete this product?</div>
+            <div className="dialog-message">
+              This will permanently remove <strong>{product?.name}</strong> from your catalog. This action cannot be undone.
+            </div>
+            <div className="dialog-divider" />
+            <div className="dialog-actions">
+              <button className="dialog-btn-cancel" onClick={() => setShowDelete(false)} disabled={deleting}>
+                Cancel
+              </button>
+              <button className="dialog-btn-confirm" onClick={handleDelete} disabled={deleting}>
+                {deleting
+                  ? <><i className="bi bi-hourglass-split" /> Deleting...</>
+                  : <><i className="bi bi-trash3-fill" /> Delete</>
+                }
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
       <style>{`
         @keyframes pulse { 0%,100%{opacity:1}50%{opacity:.4} }
-        @keyframes spin { to{transform:rotate(360deg)} }
         @keyframes fadeInPage { from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)} }
-        @keyframes slideUpDialog {
-          from{opacity:0;transform:translate(-50%,calc(-50%+14px))scale(0.96)}
-          to{opacity:1;transform:translate(-50%,-50%)scale(1)}
+
+        .pinfo-status-pill {
+          display: inline-flex; align-items: center; gap: 6px;
+          border-radius: 20px; font-size: 11px; font-weight: 700;
+          padding: 4px 12px; letter-spacing: 0.05em;
         }
-        .pinfo-two-col {
-          display: grid;
-          grid-template-columns: 1fr 340px;
-          gap: 36px;
-          margin-bottom: 28px;
+        .btn-delete-header {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 10px 18px; border-radius: 9px; border: none;
+          background: #dc2626; color: #fff; font-size: 13.5px;
+          font-weight: 600; cursor: pointer; transition: opacity 0.15s;
         }
-        @media (max-width: 1024px) { .pinfo-two-col { grid-template-columns: 1fr; gap: 20px; } }
-        @media (max-width: 768px)  { .pinfo-two-col { grid-template-columns: 1fr; gap: 16px; } }
+        .btn-delete-header:hover { opacity: 0.88; }
+        .btn-delete-header:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        .form-input:disabled, .form-input[readonly] {
+          background: #f9fafb; color: #374151; cursor: default;
+        }
+        .pinfo-no-images {
+          height: 120px; display: flex; align-items: center; justify-content: center;
+          background: #f8f9fb; border-radius: 10px;
+          border: 1.5px dashed #e0e3e8; font-size: 12.5px; color: #9ca3af;
+        }
+        .pinfo-spec-box {
+          background: #f8f9fb; border-radius: 10px;
+          padding: 16px; border: 1px solid #f0f0f0;
+        }
+        .pinfo-spec-row {
+          display: flex; justify-content: space-between;
+          padding: 8px 0; border-bottom: 1px solid #f0f0f0;
+        }
+        .pinfo-spec-row:last-child { border-bottom: none; }
+        .pinfo-spec-key   { font-size: 12px; color: #9ca3af; font-weight: 600; text-transform: uppercase; }
+        .pinfo-spec-value { font-size: 13px; color: #374151; font-weight: 500; }
       `}</style>
     </div>
   );

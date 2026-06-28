@@ -4,7 +4,6 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getProductById, updateProduct, getCategories } from '../apis/Products';
 
-// ── Skeleton loader ───────────────────────────────────────────────────
 const FieldSkeleton = ({ wide }) => (
   <div style={{
     height: 40, borderRadius: 8, background: '#f0f2f5',
@@ -15,59 +14,39 @@ const FieldSkeleton = ({ wide }) => (
 );
 
 export default function EditProductPage() {
-  const navigate  = useNavigate();
-  const { id }    = useParams();   // /products/edit/:id
+  const navigate = useNavigate();
+  const { id }   = useParams();
 
-  const [pageLoading, setPageLoading] = useState(true);
-  const [submitting, setSubmitting]   = useState(false);
-  const [categories, setCategories]   = useState([]);
-  const [dragOver, setDragOver]       = useState(false);
-  const [originalForm, setOriginalForm] = useState({});
-
-  // New images picked by the user
-  const [newImages, setNewImages]     = useState([]);   // File objects
-  const [newPreviews, setNewPreviews] = useState([]);   // base64
-
-  // Existing images from the server
-  const [existingImages, setExistingImages] = useState([]);   // { id, image }
+  const [pageLoading,   setPageLoading]   = useState(true);
+  const [submitting,    setSubmitting]    = useState(false);
+  const [categories,    setCategories]    = useState([]);
+  const [dragOver,      setDragOver]      = useState(false);
+  const [originalForm,  setOriginalForm]  = useState({});
+  const [errors,        setErrors]        = useState({});
+  const [newImages,     setNewImages]     = useState([]);
+  const [newPreviews,   setNewPreviews]   = useState([]);
+  const [existingImages,setExistingImages]= useState([]);
 
   const [form, setForm] = useState({
-    name: '',
-    category_id: '',
-    price: '',
-    stock: '',
-    description: '',
-    is_rentable: false,
-    // rental
-    price_daily: '',
-    minimum_rental_days: '',
-    maximum_rental_days: '',
-    available_units: '',
-    preparation_duration: '',
-    // other
-    setup_duration: '',
-    warranty: '',
-    configuration: '',
-    restock_date: '',
+    name: '', category_id: '', price: '', stock: '',
+    description: '', is_rentable: false,
+    price_daily: '', minimum_rental_days: '', maximum_rental_days: '',
+    available_units: '', preparation_duration: '',
+    setup_duration: '', warranty: '', configuration: '', restock_date: '',
   });
 
-  // ── Load product + categories ────────────────────────────────────
+  // ── Load product + categories ────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
-
-    Promise.all([
-      getProductById(id),
-      getCategories(),
-    ])
+    Promise.all([getProductById(id), getCategories()])
       .then(([productRes, catRes]) => {
         setCategories(catRes.data || []);
 
-        const p = productRes.data || productRes;
+        // API: { success, message, data: { ... } }
+        const p      = productRes.data || productRes;
+        const rental = p.rental_details || {};
 
         setExistingImages(p.image || []);
-
-        // Merge rental_details into the form if present
-        const rental = p.rental_details || {};
 
         const productData = {
           name:                 p.name              || '',
@@ -80,7 +59,7 @@ export default function EditProductPage() {
           warranty:             p.warranty          || '',
           configuration:        p.configuration     || '',
           restock_date:         p.restock_date      || '',
-          // rental fields (from rental_details if present)
+          // rental fields — from rental_details object if present
           price_daily:          rental.price_daily          || p.price_daily          || '',
           minimum_rental_days:  rental.minimum_rental_days  || p.minimum_rental_days  || '',
           maximum_rental_days:  rental.maximum_rental_days  || p.maximum_rental_days  || '',
@@ -91,23 +70,24 @@ export default function EditProductPage() {
         setForm(productData);
         setOriginalForm(productData);
       })
-      .catch((err) => {
+      .catch(err => {
         toast.error(err?.message || 'Failed to load product');
         navigate('/products');
       })
       .finally(() => setPageLoading(false));
   }, [id]);
 
-  // ── Field change ─────────────────────────────────────────────────
+  // ── Field change ─────────────────────────────────────────────────────
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setForm(prev => ({ ...prev, [name]: type === 'checkbox' ? checked : value }));
+    if (errors[name]) setErrors(prev => { const n = { ...prev }; delete n[name]; return n; });
   };
 
-  // ── New image handling ───────────────────────────────────────────
+  // ── Image handling ───────────────────────────────────────────────────
   const addImages = (files) => {
     const validFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
-    if (!validFiles.length) return;
+    if (!validFiles.length) { toast.error('Please upload valid image files'); return; }
     validFiles.forEach(file => {
       const reader = new FileReader();
       reader.onload = (ev) => setNewPreviews(prev => [...prev, ev.target.result]);
@@ -116,61 +96,70 @@ export default function EditProductPage() {
     setNewImages(prev => [...prev, ...validFiles]);
   };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    addImages(e.dataTransfer.files);
-  };
-
   const removeNewImage = (index) => {
     setNewImages(prev => prev.filter((_, i) => i !== index));
     setNewPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ── Submit ───────────────────────────────────────────────────────
-  const handleSubmit = async () => {
-    if (!form.name.trim()) return toast.error('Product name is required');
-    if (!form.price)       return toast.error('Price is required');
+  // ── Validation ───────────────────────────────────────────────────────
+  const validate = () => {
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Product name is required';
+    if (!form.price || parseFloat(form.price) <= 0) newErrors.price = 'Valid price is required';
+    if (form.is_rentable) {
+      if (!form.price_daily || parseFloat(form.price_daily) <= 0) newErrors.price_daily = 'Daily rate is required';
+      if (!form.minimum_rental_days) newErrors.minimum_rental_days = 'Minimum rental days required';
+      if (!form.maximum_rental_days) newErrors.maximum_rental_days = 'Maximum rental days required';
+    }
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
-    // Build only changed fields
-    const changedFields = {};
-    Object.keys(form).forEach((key) => {
-      // Coerce boolean to int for is_rentable comparison
+  // ── Submit ───────────────────────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!validate()) { toast.error('Please fix the highlighted errors'); return; }
+
+    // Check if anything actually changed
+    const hasChanges = Object.keys(form).some((key) => {
       const newVal = key === 'is_rentable' ? (form[key] ? 1 : 0) : form[key];
       const oldVal = key === 'is_rentable' ? (originalForm[key] ? 1 : 0) : originalForm[key];
-      if (String(newVal) !== String(oldVal)) {
-        changedFields[key] = newVal;
-      }
+      return String(newVal) !== String(oldVal);
     });
 
-    const payload = {
-      ...changedFields,
-      images: newImages,
-    };
-
-    if (Object.keys(changedFields).length === 0 && newImages.length === 0) {
+    if (!hasChanges && newImages.length === 0) {
       return toast.info('No changes detected');
     }
 
     setSubmitting(true);
     try {
-      await updateProduct(id, payload, originalForm);
+      // Send the full form — backend handles what to update
+      await updateProduct(id, {
+        ...form,
+        is_rentable: form.is_rentable ? 1 : 0,
+        images: newImages,
+      });
       toast.success('Product updated successfully!');
       navigate('/products');
     } catch (err) {
-      toast.error(err?.message || 'Failed to update product');
+      // Show the real error from the server (e.g. "edit_pending" state error)
+      toast.error(err?.message || 'Failed to update product', { autoClose: 6000 });
     } finally {
       setSubmitting(false);
     }
   };
 
+  const ErrorField = ({ name }) =>
+    errors[name] ? (
+      <span style={{ color: '#dc2626', fontSize: 12, marginTop: 4, display: 'block' }}>
+        <i className="bi bi-exclamation-circle" /> {errors[name]}
+      </span>
+    ) : null;
+
   return (
     <div className="dashboard-content">
       {/* Breadcrumb */}
       <div className="breadcrumb-row">
-        <span className="bc-link" onClick={() => navigate('/')}>
-          <i className="bi bi-grid-fill" /> Dashboard
-        </span>
+        <span className="bc-link" onClick={() => navigate('/')}><i className="bi bi-grid-fill" /> Dashboard</span>
         <i className="bi bi-chevron-right bc-sep" />
         <span className="bc-link" onClick={() => navigate('/products')}>Products</span>
         <i className="bi bi-chevron-right bc-sep" />
@@ -181,9 +170,7 @@ export default function EditProductPage() {
       <div className="page-header" style={{ marginBottom: 24 }}>
         <div className="page-title">
           <h1>Edit Product</h1>
-          {!pageLoading && (
-            <p style={{ fontSize: 13, color: '#9ca3af', margin: '2px 0 0' }}>ID: {id}</p>
-          )}
+          {!pageLoading && <p style={{ fontSize: 13, color: '#9ca3af', margin: '2px 0 0' }}>ID: {id}</p>}
         </div>
         <div className="header-actions">
           <button className="btn-export" onClick={() => navigate('/products')} disabled={submitting}>
@@ -200,25 +187,18 @@ export default function EditProductPage() {
 
       <div className="form-card">
         {pageLoading ? (
-          /* ── Skeleton while loading ───────────────────────────── */
           <div>
             <FieldSkeleton wide />
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-              <FieldSkeleton /><FieldSkeleton />
-              <FieldSkeleton /><FieldSkeleton />
+              <FieldSkeleton /><FieldSkeleton /><FieldSkeleton /><FieldSkeleton />
             </div>
             <FieldSkeleton wide />
-            <div style={{
-              height: 100, borderRadius: 8, background: '#f0f2f5',
-              animation: 'pulse 1.5s ease-in-out infinite',
-            }} />
+            <div style={{ height: 100, borderRadius: 8, background: '#f0f2f5', animation: 'pulse 1.5s ease-in-out infinite' }} />
           </div>
         ) : (
           <>
-            {/* ── General Info + Images ─────────────────────────── */}
             <div className="form-two-col">
-
-              {/* LEFT */}
+              {/* LEFT — General Info */}
               <div>
                 <div className="section-heading">
                   <div className="section-icon blue"><i className="bi bi-pencil-fill" /></div>
@@ -228,37 +208,23 @@ export default function EditProductPage() {
                 <div className="form-group">
                   <label className="form-label">Product Name *</label>
                   <input
-                    className="form-input"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
+                    className={`form-input ${errors.name ? 'is-invalid' : ''}`}
+                    name="name" value={form.name} onChange={handleChange}
                   />
+                  <ErrorField name="name" />
                 </div>
 
                 <div className="form-row-2">
                   <div className="form-group">
                     <label className="form-label">Category</label>
-                    <select
-                      className="form-input form-select"
-                      name="category_id"
-                      value={form.category_id}
-                      onChange={handleChange}
-                    >
+                    <select className="form-input form-select" name="category_id" value={form.category_id} onChange={handleChange}>
                       <option value="">Select Category</option>
-                      {categories.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                   </div>
                   <div className="form-group">
                     <label className="form-label">Warranty</label>
-                    <input
-                      className="form-input"
-                      name="warranty"
-                      value={form.warranty}
-                      onChange={handleChange}
-                      placeholder="e.g. 2 Years"
-                    />
+                    <input className="form-input" name="warranty" value={form.warranty} onChange={handleChange} placeholder="e.g. 2 Years" />
                   </div>
                 </div>
 
@@ -266,76 +232,41 @@ export default function EditProductPage() {
                   <div className="form-group">
                     <label className="form-label">Price ($) *</label>
                     <input
-                      className="form-input"
-                      name="price"
-                      value={form.price}
-                      onChange={handleChange}
-                      type="number"
-                      min="0"
+                      className={`form-input ${errors.price ? 'is-invalid' : ''}`}
+                      name="price" value={form.price} onChange={handleChange} type="number" min="0"
                     />
+                    <ErrorField name="price" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Stock Quantity</label>
-                    <input
-                      className="form-input"
-                      name="stock"
-                      value={form.stock}
-                      onChange={handleChange}
-                      type="number"
-                      min="0"
-                    />
+                    <input className="form-input" name="stock" value={form.stock} onChange={handleChange} type="number" min="0" />
                   </div>
                 </div>
 
                 <div className="form-row-2">
                   <div className="form-group">
                     <label className="form-label">Setup Duration</label>
-                    <input
-                      className="form-input"
-                      name="setup_duration"
-                      value={form.setup_duration}
-                      onChange={handleChange}
-                      placeholder="e.g. 15min"
-                    />
+                    <input className="form-input" name="setup_duration" value={form.setup_duration} onChange={handleChange} placeholder="e.g. 15min" />
                   </div>
                   <div className="form-group">
                     <label className="form-label">Restock Date</label>
-                    <input
-                      className="form-input"
-                      name="restock_date"
-                      value={form.restock_date}
-                      onChange={handleChange}
-                      type="date"
-                    />
+                    <input className="form-input" name="restock_date" value={form.restock_date} onChange={handleChange} type="date" />
                   </div>
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Configuration / Box Contents</label>
-                  <input
-                    className="form-input"
-                    name="configuration"
-                    value={form.configuration}
-                    onChange={handleChange}
-                    placeholder="e.g. 1x Device, 2x Batteries"
-                  />
+                  <input className="form-input" name="configuration" value={form.configuration} onChange={handleChange} placeholder="e.g. 1x Device, 2x Batteries" />
                 </div>
 
                 <div className="form-group">
                   <label className="form-label">Description</label>
-                  <textarea
-                    className="form-input form-textarea"
-                    name="description"
-                    value={form.description}
-                    onChange={handleChange}
-                    rows={5}
-                  />
+                  <textarea className="form-input form-textarea" name="description" value={form.description} onChange={handleChange} rows={5} />
                 </div>
               </div>
 
-              {/* RIGHT: Images */}
+              {/* RIGHT — Images */}
               <div>
-                {/* Existing images */}
                 {existingImages.length > 0 && (
                   <>
                     <div className="section-heading">
@@ -349,8 +280,7 @@ export default function EditProductPage() {
                         <div key={img.id || i} className="current-image-wrap" style={{ background: '#f3f4f6' }}>
                           {i === 0 && <span className="img-main-badge">Main</span>}
                           <img
-                            src={img.image}
-                            alt={`product-${i}`}
+                            src={img.image} alt={`product-${i}`}
                             style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
                             onError={e => { e.target.src = 'https://placehold.co/80x80?text=No+Img'; }}
                           />
@@ -360,11 +290,8 @@ export default function EditProductPage() {
                   </>
                 )}
 
-                {/* Upload new images */}
                 <div className="section-heading">
-                  <div className="section-icon blue">
-                    <i className="bi bi-cloud-arrow-up-fill" />
-                  </div>
+                  <div className="section-icon blue"><i className="bi bi-cloud-arrow-up-fill" /></div>
                   Upload New Images
                 </div>
 
@@ -373,41 +300,24 @@ export default function EditProductPage() {
                   style={{ height: 140 }}
                   onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
-                  onDrop={handleDrop}
+                  onDrop={(e) => { e.preventDefault(); setDragOver(false); addImages(e.dataTransfer.files); }}
                   onClick={() => document.getElementById('editFileInput').click()}
                 >
-                  <input
-                    id="editFileInput"
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    style={{ display: 'none' }}
-                    onChange={(e) => addImages(e.target.files)}
-                  />
+                  <input id="editFileInput" type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={(e) => addImages(e.target.files)} />
                   <div className="dropzone-inner">
                     <div className="dropzone-icon"><i className="bi bi-cloud-arrow-up" /></div>
-                    <div className="dropzone-text">
-                      <span className="dropzone-link">Browse</span> or drag &amp; drop
-                    </div>
+                    <div className="dropzone-text"><span className="dropzone-link">Browse</span> or drag &amp; drop</div>
                     <div className="dropzone-hint">Supports: JPG, PNG, WEBP (Max 5MB)</div>
                   </div>
                 </div>
 
-                {/* New image previews */}
                 {newPreviews.length > 0 && (
                   <div className="current-images-grid" style={{ marginTop: 12 }}>
                     {newPreviews.map((src, i) => (
                       <div key={i} className="current-image-wrap" style={{ background: '#f3f4f6' }}>
                         <span className="img-main-badge" style={{ background: '#2563eb' }}>New</span>
-                        <img
-                          src={src}
-                          alt={`new-${i}`}
-                          style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }}
-                        />
-                        <button
-                          className="img-delete-btn"
-                          onClick={(e) => { e.stopPropagation(); removeNewImage(i); }}
-                        >
+                        <img src={src} alt={`new-${i}`} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 8 }} />
+                        <button className="img-delete-btn" onClick={(e) => { e.stopPropagation(); removeNewImage(i); }}>
                           <i className="bi bi-trash3-fill" />
                         </button>
                       </div>
@@ -417,7 +327,7 @@ export default function EditProductPage() {
               </div>
             </div>
 
-            {/* ── Rental Options ─────────────────────────────────── */}
+            {/* Rental Options */}
             <div className="rental-section">
               <div className="rental-header">
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -426,18 +336,11 @@ export default function EditProductPage() {
                   </div>
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: '#1a1d23' }}>Rental Options</div>
-                    <div style={{ fontSize: 12.5, color: '#9ca3af' }}>
-                      Configure rental pricing and availability
-                    </div>
+                    <div style={{ fontSize: 12.5, color: '#9ca3af' }}>Configure rental pricing and availability</div>
                   </div>
                 </div>
                 <label className="toggle-switch">
-                  <input
-                    type="checkbox"
-                    name="is_rentable"
-                    checked={form.is_rentable}
-                    onChange={handleChange}
-                  />
+                  <input type="checkbox" name="is_rentable" checked={form.is_rentable} onChange={handleChange} />
                   <span className="toggle-slider" />
                 </label>
               </div>
@@ -445,26 +348,24 @@ export default function EditProductPage() {
               {form.is_rentable && (
                 <div className="rental-fields">
                   {[
-                    { label: 'DAILY RATE',       name: 'price_daily',          prefix: '$', placeholder: '0.00' },
-                    { label: 'MIN DAYS',         name: 'minimum_rental_days',  prefix: '',  placeholder: '1' },
-                    { label: 'MAX DAYS',         name: 'maximum_rental_days',  prefix: '',  placeholder: '30' },
-                    { label: 'AVAILABLE UNITS',  name: 'available_units',      prefix: '',  placeholder: '0' },
-                    { label: 'PREP DURATION',    name: 'preparation_duration', prefix: '',  placeholder: '0min' },
+                    { label: 'DAILY RATE',      name: 'price_daily',          prefix: '$', placeholder: '0.00', error: errors.price_daily },
+                    { label: 'MIN DAYS',        name: 'minimum_rental_days',  prefix: '',  placeholder: '1',    error: errors.minimum_rental_days },
+                    { label: 'MAX DAYS',        name: 'maximum_rental_days',  prefix: '',  placeholder: '30',   error: errors.maximum_rental_days },
+                    { label: 'AVAILABLE UNITS', name: 'available_units',      prefix: '',  placeholder: '0' },
+                    { label: 'PREP DURATION',   name: 'preparation_duration', prefix: '',  placeholder: '0min' },
                   ].map(f => (
                     <div key={f.name} className="rental-field">
                       <label className="rental-label">{f.label}</label>
                       <div className="rental-input-wrap">
                         {f.prefix && <span className="rental-prefix">{f.prefix}</span>}
                         <input
-                          className={`form-input rental-input ${f.prefix ? 'has-prefix' : ''}`}
-                          name={f.name}
-                          value={form[f.name]}
-                          onChange={handleChange}
+                          className={`form-input rental-input ${f.prefix ? 'has-prefix' : ''} ${f.error ? 'is-invalid' : ''}`}
+                          name={f.name} value={form[f.name]} onChange={handleChange}
                           placeholder={f.placeholder}
-                          type={f.prefix === '$' ? 'number' : 'text'}
-                          min="0"
+                          type={f.prefix === '$' ? 'number' : 'text'} min="0"
                         />
                       </div>
+                      {f.error && <span style={{ color: '#dc2626', fontSize: 11, marginTop: 3 }}>{f.error}</span>}
                     </div>
                   ))}
                 </div>
@@ -473,13 +374,7 @@ export default function EditProductPage() {
 
             {/* Bottom actions */}
             <div className="form-actions">
-              <button
-                className="btn-export"
-                onClick={() => navigate('/products')}
-                disabled={submitting}
-              >
-                Cancel
-              </button>
+              <button className="btn-export" onClick={() => navigate('/products')} disabled={submitting}>Cancel</button>
               <button className="btn-add" onClick={handleSubmit} disabled={submitting}>
                 {submitting
                   ? <><i className="bi bi-hourglass-split" /> Updating...</>
@@ -491,9 +386,7 @@ export default function EditProductPage() {
         )}
       </div>
 
-      <style>{`
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
-      `}</style>
+      <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }`}</style>
     </div>
   );
 }

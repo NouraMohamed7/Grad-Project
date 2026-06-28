@@ -1,51 +1,190 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useState, useEffect } from 'react'; 
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import './../styles/auth.css';
-import { supplierLogin } from '../apis/login';
 import { toast } from "react-toastify";
+import { supplierLogin } from "../apis/auth";
 
+
+// ─── ErrorField component ─────────────────────────────────────────────────────
+// Reusable inline error message shown directly under each input.
+const ErrorField = ({ msg }) => {
+  if (!msg) return null;
+  return (
+    <div className="field-error" style={{
+      color: "#dc2626",
+      fontSize: 13,
+      marginTop: 6,
+      display: "flex",
+      alignItems: "center",
+      gap: 6,
+    }}>
+      <svg width="14" height="14" fill="#dc2626" viewBox="0 0 24 24">
+        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+      </svg>
+      {msg}
+    </div>
+  );
+};
+
+// ─── Login Component ──────────────────────────────────────────────────────────
 export default function Login() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [remember, setRemember] = useState(false)
-  const [form, setForm] = useState({ email: '', password: '' })
+  const [showPassword, setShowPassword] = useState(false);
+  const [remember, setRemember] = useState(false);
+  const [form, setForm] = useState({ email: '', password: '' });
+  const [errors, setErrors] = useState({});
+  const [touched, setTouched] = useState({});
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-
+  // ── Redirect if already logged in ────────────────────────────────────────
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
-      navigate("/home", { replace: true });  
+      navigate("/home", { replace: true });
     }
   }, []);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
+  // ── Helpers ──────────────────────────────────────────────────────────────
+  const clearError = (field) => {
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field];
+      return next;
+    });
+  };
 
-  try {
-    const data = await supplierLogin(form.email, form.password);
-    const { success, data: user, token, message } = data;
+  const markTouched = (field) => {
+    setTouched((prev) => ({ ...prev, [field]: true }));
+  };
 
-    if (!success || !user) {
-      toast.error(message || "Login failed");
+  // ── Client-side validation ────────────────────────────────────────────
+  const validateClient = () => {
+    const newErrors = {};
+
+    if (!form.email.trim()) {
+      newErrors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = "Please enter a valid email address.";
+    }
+
+    if (!form.password) {
+      newErrors.password = "Password is required.";
+    } else if (form.password.length < 6) {
+      newErrors.password = "Password must be at least 6 characters.";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // ── Form submission handler ──────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    // Mark everything as touched so errors show immediately
+    setTouched({ email: true, password: true });
+
+    if (loading) return;
+
+    // Run client-side validation first
+    const isValid = validateClient();
+    if (!isValid) {
       return;
     }
 
-    localStorage.setItem("token", token);
+    try {
+      setLoading(true);
+      setErrors({});
 
-    toast.success(`Welcome ${user?.fullname || user?.email || "User"}`);
+      const data = await supplierLogin(form.email.trim(), form.password);
 
-    // Redirect بعد 1.5 ثانية بحيث Toast يظهر
-    setTimeout(() => {
-      navigate("/home"); // ضع اسم الـ route للـ DashboardPage.jsx
-    }, 1500);
+      // DEBUG: log full response (remove in production)
+      console.log("Login response:", JSON.stringify(data, null, 2));
 
-  } catch (error) {
-    console.error("Login failed:", error);
-    toast.error(error?.error || error?.message || "Login failed");
-  }
-};
+      // ── Extract token & user from all possible response shapes ─────────
+      const token = data?.token || data?.data?.token;
+      const user  = data?.user  || data?.data?.user  || data?.data;
 
+      if (!token) {
+        // API returned 200 but no token — treat as error
+        const apiError = data?.error || data?.message || "Login failed — no token received.";
+        setErrors({ general: apiError });
+        toast.error(apiError);
+        return;
+      }
+
+      // ── Store auth data ────────────────────────────────────────────────
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(user || {}));
+
+      // supplierId from all possible locations
+      const supplierId =
+        user?.supplier?.id ??
+        user?.supplier_id  ??
+        user?.id           ??
+        '';
+      localStorage.setItem("supplierId", String(supplierId));
+
+      // Remember me
+      if (remember) {
+        localStorage.setItem("rememberEmail", form.email.trim());
+      } else {
+        localStorage.removeItem("rememberEmail");
+      }
+
+      toast.success(`Welcome back, ${user?.fullname || user?.name || user?.email || "Supplier"}!`);
+
+      setTimeout(() => {
+        navigate("/home", { replace: true });
+      }, 1200);
+
+    } catch (error) {
+      console.error("Login error full:", error);
+
+      // ── Backend error handling ───────────────────────────────────────
+      // The API returns errors in different shapes. We try the most common ones.
+      let apiErrors = {};
+      let genericMsg = "Login failed. Please try again.";
+
+      if (error && typeof error === "object") {
+        // Shape 1: { errors: { email: ["..."], password: ["..."] } }
+        if (error.errors && typeof error.errors === "object") {
+          apiErrors = Object.fromEntries(
+            Object.entries(error.errors).map(([k, v]) => [
+              k,
+              Array.isArray(v) ? v[0] : v,
+            ])
+          );
+        }
+        // Shape 2: { error: "..." } or { message: "..." }
+        else if (error.error) {
+          genericMsg = error.error;
+        } else if (error.message) {
+          genericMsg = error.message;
+        }
+      }
+
+      if (Object.keys(apiErrors).length > 0) {
+        setErrors(apiErrors);
+      } else {
+        setErrors({ general: genericMsg });
+        toast.error(genericMsg);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ── Load remembered email on mount ─────────────────────────────────────
+  useEffect(() => {
+    const remembered = localStorage.getItem("rememberEmail");
+    if (remembered) {
+      setForm((prev) => ({ ...prev, email: remembered }));
+      setRemember(true);
+    }
+  }, []);
+
+  // ── Render ──────────────────────────────────────────────────────────────
   return (
     <div className="page-bg">
       <div className="top-bar" />
@@ -65,7 +204,28 @@ const handleSubmit = async (e) => {
           <h1 className="login-title">Welcome Back</h1>
           <p className="login-subtitle">Enter your credentials to access the supplier portal</p>
 
-          <form onSubmit={handleSubmit}>
+          {/* ── General error banner ── */}
+          {errors.general && (
+            <div className="alert alert-danger" style={{
+              background: "#fef2f2",
+              border: "1px solid #fecaca",
+              color: "#dc2626",
+              borderRadius: 8,
+              padding: "12px 16px",
+              marginBottom: 16,
+              fontSize: 14,
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+            }}>
+              <svg width="18" height="18" fill="#dc2626" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+              </svg>
+              {errors.general}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate>
             {/* Email */}
             <div className="mb-3">
               <label className="form-label-med d-block mb-1">Email Address</label>
@@ -77,13 +237,19 @@ const handleSubmit = async (e) => {
                 </span>
                 <input
                   type="email"
-                  className="form-control-med"
+                  name="email"
+                  className={`form-control-med ${errors.email && touched.email ? "is-invalid" : ""}`}
                   placeholder="name@company.com"
                   value={form.email}
-                  onChange={e => setForm({ ...form, email: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    clearError("email");
+                  }}
+                  onBlur={() => markTouched("email")}
                   required
                 />
               </div>
+              <ErrorField msg={touched.email ? errors.email : null} />
             </div>
 
             {/* Password */}
@@ -100,10 +266,15 @@ const handleSubmit = async (e) => {
                 </span>
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="form-control-med has-right-icon"
+                  name="password"
+                  className={`form-control-med has-right-icon ${errors.password && touched.password ? "is-invalid" : ""}`}
                   placeholder="••••••••"
                   value={form.password}
-                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, password: e.target.value });
+                    clearError("password");
+                  }}
+                  onBlur={() => markTouched("password")}
                   required
                 />
                 <button
@@ -123,6 +294,7 @@ const handleSubmit = async (e) => {
                   )}
                 </button>
               </div>
+              <ErrorField msg={touched.password ? errors.password : null} />
             </div>
 
             {/* Remember */}
@@ -131,18 +303,31 @@ const handleSubmit = async (e) => {
                 <input
                   type="checkbox"
                   checked={remember}
-                  onChange={e => setRemember(e.target.checked)}
+                  onChange={(e) => setRemember(e.target.checked)}
                 />
                 <span>Remember this device</span>
               </label>
             </div>
 
             {/* Sign In */}
-            <button type="submit" className="btn-sign-in mb-3">
-              Sign In
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M10 17l5-5-5-5v10zm11-5c0-5.52-4.48-10-10-10S1 6.48 1 12s4.48 10 10 10 10-4.48 10-10z"/>
-              </svg>
+            <button
+              type="submit"
+              className="btn-sign-in mb-3"
+              disabled={loading}
+            >
+              {loading ? (
+                <>
+                  <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+                  Signing In...
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M10 17l5-5-5-5v10zm11-5c0-5.52-4.48-10-10-10S1 6.48 1 12s4.48 10 10 10 10-4.48 10-10z"/>
+                  </svg>
+                </>
+              )}
             </button>
 
             <div className="divider-or mb-3">or continue with</div>
@@ -162,5 +347,5 @@ const handleSubmit = async (e) => {
         <a href="#">Terms of Service</a>
       </footer>
     </div>
-  )
+  );
 }

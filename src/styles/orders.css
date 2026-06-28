@@ -458,3 +458,24 @@
 @media (max-width: 640px) {
   .ord-meta-row { gap: 16px; }
 }
+
+@media (max-width: 768px) {
+  .ord-pagination {
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+  }
+
+  .ord-table-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .ord-table-controls {
+    width: 100%;
+  }
+
+  .ord-type-select {
+    width: 100%;
+  }
+}
