@@ -28,8 +28,8 @@ export default function OpenRequestsPage() {
     setLoading(true);
     setError(null);
     try {
-      // ✅ FIXED: Added status='open' parameter
-      const res = await getOpenRequests(p, 15, 'open');
+      // ✅ FIXED: status param removed — not supported by the supplier/show endpoint
+      const res = await getOpenRequests(p, 15);
       // Real shape: { success, message, data: [], last_page, per_page, total }
       setRequests(res.data ?? []);
       setLastPage(res.last_page ?? 1);

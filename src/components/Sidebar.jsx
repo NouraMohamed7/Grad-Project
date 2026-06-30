@@ -1,7 +1,7 @@
 // src/components/Sidebar.jsx
 import React, { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import {logoutUser } from "../apis/auth";
+import { logoutUser } from "../apis/auth";
 import { toast } from 'react-toastify';
 
 const navItems = [

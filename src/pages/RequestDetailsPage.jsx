@@ -38,7 +38,6 @@ export default function RequestDetailsPage() {
     try {
       const res = await getSupplierOrderById(id);
       // API returns: { success, message, data: [ { ...orderFields, custom_request: {...} } ] }
-      // data is an array with one element
       const item = Array.isArray(res?.data) ? res.data[0] : res?.data ?? res;
       if (!item) throw new Error('Order not found.');
       setOrder(item);
@@ -51,7 +50,6 @@ export default function RequestDetailsPage() {
 
   useEffect(() => { if (id) fetchOrder(); }, [id]);
 
-  // ── Loading ───────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="rd-page">
       <div className="rd-header">
@@ -64,7 +62,6 @@ export default function RequestDetailsPage() {
     </div>
   );
 
-  // ── Error ─────────────────────────────────────────────────────────────────
   if (error) return (
     <div className="rd-page">
       <div className="rd-header">
@@ -82,7 +79,6 @@ export default function RequestDetailsPage() {
     </div>
   );
 
-  // ── Derived values from real API shape ────────────────────────────────────
   // order shape: { id, request_id, supplier_id, price, delivery_days, notes, status,
   //   created_at, updated_at, custom_request: { id, doctor_id, item[], type, budget,
   //   additionalDetails, expires_at, rent_start_date, rent_end_date, status,
@@ -104,7 +100,6 @@ export default function RequestDetailsPage() {
         </button>
         <h2 className="rd-title">Order Details</h2>
         <div className="rd-actions">
-          {/* Offer status badge in header */}
           <span className={`cr-ostatus ${STATUS_CLASS[orderStatus] ?? 'ostatus-negotiation'}`}
             style={{ fontSize: 13, padding: '4px 14px' }}>
             Offer: {orderStatus}
@@ -173,7 +168,6 @@ export default function RequestDetailsPage() {
               )}
             </div>
             <div className="rd-info-grid">
-              {/* Items requested */}
               {items.length > 0 && (
                 <div className="rd-info-group" style={{ gridColumn: '1 / -1' }}>
                   <span className="rd-label">ITEMS REQUESTED</span>

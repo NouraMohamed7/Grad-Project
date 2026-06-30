@@ -24,17 +24,19 @@ export default function CustomRequestOrdersPage() {
   const [error,    setError]    = useState(null);
   const [search,   setSearch]   = useState('');
   const [page,     setPage]     = useState(1);
+  const [lastPage, setLastPage] = useState(1);
+  const [total,    setTotal]    = useState(0);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (p = 1) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await getSupplierOfferOrders();
-      // API shape: { success, message, data: [{ id, status, request_id, supplier_id,
-      //   custom_request: { doctor: { all_user: { email, fullname } } } }] }
-      const raw  = res?.data ?? (Array.isArray(res) ? res : []);
+      const res = await getSupplierOfferOrders(p, ITEMS_PER_PAGE);
+      const raw  = res?.data ?? [];
       const list = raw.map((item, i) => ({ ...item, _rowKey: `${item.id ?? 'row'}-${i}` }));
       setOrders(list);
+      setLastPage(res.last_page ?? 1);
+      setTotal(res.total ?? 0);
     } catch (err) {
       setError(err?.response?.data?.error ?? err?.message ?? 'Failed to load orders.');
     } finally {
@@ -42,21 +44,13 @@ export default function CustomRequestOrdersPage() {
     }
   };
 
-  useEffect(() => { fetchOrders(); }, []);
+  useEffect(() => { fetchOrders(page); }, [page]);
 
-  // ── Field normalizers matching real API response shape ──────────────────
-  // API: { id, status, request_id, supplier_id,
-  //        custom_request: { doctor: { all_user: { email, fullname } } } }
   const getId     = (o) => o.id ?? o.request_id ?? '—';
-  const getEmail  = (o) =>
-    o.custom_request?.doctor?.all_user?.email ??
-    o.doctor?.email ??
-    o.email ??
-    '—';
+  const getEmail  = (o) => o.custom_request?.doctor?.all_user?.email ?? '—';
   const getPrice  = (o) => Number(o.price ?? o.budget ?? o.total ?? 0);
   const getStatus = (o) => (o.status ?? 'pending').toLowerCase();
 
-  // ── Client-side search + pagination ──────────────────────────────────────
   const filtered = orders.filter(o => {
     const q = search.toLowerCase();
     return (
@@ -65,12 +59,10 @@ export default function CustomRequestOrdersPage() {
     );
   });
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated  = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
-  const from       = filtered.length === 0 ? 0 : (page - 1) * ITEMS_PER_PAGE + 1;
-  const to         = Math.min(page * ITEMS_PER_PAGE, filtered.length);
+  const totalPages = Math.max(1, lastPage);
+  const from       = total === 0 ? 0 : (page - 1) * ITEMS_PER_PAGE + 1;
+  const to         = Math.min(page * ITEMS_PER_PAGE, total);
 
-  // ── Render ────────────────────────────────────────────────────────────────
   if (loading) return (
     <div className="cr-page">
       <div className="cr-card">
@@ -83,7 +75,7 @@ export default function CustomRequestOrdersPage() {
     <div className="cr-page">
       <div className="cr-card">
         <div className="cr-error">{error}</div>
-        <button className="cr-new-btn" style={{ marginTop: 12 }} onClick={fetchOrders}>Retry</button>
+        <button className="cr-new-btn" style={{ marginTop: 12 }} onClick={() => fetchOrders(page)}>Retry</button>
       </div>
     </div>
   );
@@ -123,11 +115,11 @@ export default function CustomRequestOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {paginated.length === 0 ? (
+              {filtered.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="cr-empty">No orders found.</td>
                 </tr>
-              ) : paginated.map(order => {
+              ) : filtered.map(order => {
                 const id        = getId(order);
                 const requestId = order.request_id ?? '—';
                 const email     = getEmail(order);
@@ -163,7 +155,7 @@ export default function CustomRequestOrdersPage() {
 
         <div className="cr-footer">
           <span className="cr-count">
-            Showing <strong>{from}–{to}</strong> of <strong>{filtered.length}</strong> orders
+            Showing <strong>{from}–{to}</strong> of <strong>{total}</strong> orders
           </span>
           <div className="cr-pagination">
             <button

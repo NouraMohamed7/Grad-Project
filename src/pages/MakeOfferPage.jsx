@@ -54,7 +54,6 @@ export default function MakeOfferPage() {
     const errs = validate();
     setErrors(errs);
     if (Object.keys(errs).length > 0) {
-      // Show first error as toast for quick feedback
       toast.error(Object.values(errs)[0]);
       return;
     }
@@ -67,13 +66,10 @@ export default function MakeOfferPage() {
         notes:         notes.trim() || undefined,
       });
       toast.success('Offer sent successfully!');
-      // ✅ FIXED: Navigate to orders page instead of generic /requests
       navigate('/requests/orders');
     } catch (err) {
-      // Backend validation errors (422)
       const backendErrors = err?.response?.data?.errors;
       if (backendErrors && typeof backendErrors === 'object') {
-        // Map backend field errors to our state
         const mapped = {};
         if (backendErrors.price)         mapped.price = backendErrors.price[0];
         if (backendErrors.delivery_days) mapped.days  = backendErrors.delivery_days[0];
@@ -134,7 +130,6 @@ export default function MakeOfferPage() {
         <div className="mo-form-card">
           <h2 className="mo-form-title">Make an Offer</h2>
 
-          {/* Global requestId error (shouldn't normally show but safety net) */}
           {errors.requestId && (
             <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: 8, marginBottom: 16, fontSize: 13 }}>
               <i className="bi bi-exclamation-circle-fill" style={{ marginRight: 6 }} />

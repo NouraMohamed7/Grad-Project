@@ -1,3 +1,4 @@
+// src/App.jsx
 import React from "react";
 import {
   BrowserRouter,
@@ -112,20 +113,11 @@ export default function App() {
 
             {/* Custom Requests */}
             <Route path="/requests" element={<CustomRequestsPage />} />
-            <Route
-              path="/requests/orders"
-              element={<CustomRequestOrdersPage />}
-            />
+            <Route path="/requests/orders" element={<CustomRequestOrdersPage />} />
             <Route path="/requests/open" element={<OpenRequestsPage />} />
             <Route path="/requests/make-offer" element={<MakeOfferPage />} />
-            <Route
-              path="/requests/details/:id"
-              element={<RequestDetailsPage />}
-            />
-            <Route
-              path="/requests/order-details/:id"
-              element={<RequestDetailsPage />}
-            />
+            <Route path="/requests/details/:id" element={<RequestDetailsPage />} />
+            <Route path="/requests/order-details/:id" element={<RequestDetailsPage />} />
 
             {/* Chat */}
             <Route path="/chat" element={<ChatsPage />} />

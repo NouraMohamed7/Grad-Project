@@ -1,4 +1,4 @@
-// src/apis/offerRequests.js
+// src/apis/requests.js
 import axios from 'axios';
 
 const BASE_URL = 'https://medconnect-one-pi.vercel.app/api/api';
@@ -10,15 +10,17 @@ const authHeaders = () => ({
 
 // ─────────────────────────────────────────────
 // OPEN REQUESTS  →  OpenRequestsPage (Supplier view)
-// GET /v1/customRequest/supplier/show?per_page=15&page=1&status=open
+// GET /v1/customRequest/supplier/show?per_page=15&page=1
+// ⚠️ CONFIRMED from Postman spec: this endpoint does NOT accept a `status`
+// param (unlike /v1/customRequest/doctor/show which does). Removed it.
 // Response: { success, message, data: [...], last_page, per_page, total }
 // Each item: { id, doctor_id, additionalDetails, budget, item[], type, expires_at,
 //              rent_start_date, rent_end_date, status, created_at, updated_at }
 // ─────────────────────────────────────────────
-export const getOpenRequests = async (page = 1, perPage = 15, status = 'open') => {
+export const getOpenRequests = async (page = 1, perPage = 15) => {
   const res = await axios.get(`${BASE_URL}/v1/customRequest/supplier/show`, {
     headers: authHeaders(),
-    params: { page, per_page: perPage, status },
+    params: { page, per_page: perPage },
   });
   return res.data; // { success, data: [], last_page, per_page, total }
 };
@@ -26,7 +28,9 @@ export const getOpenRequests = async (page = 1, perPage = 15, status = 'open') =
 // ─────────────────────────────────────────────
 // CREATE OFFER  →  MakeOfferPage
 // POST /v1/offerRequest/create/{customRequestId}
-// Body: { price, delivery_days, notes }
+// ⚠️ UNCONFIRMED: path/body inferred from naming only ("create" under
+// offerRequest > supplier in the Postman sidebar). Not verified against an
+// actual example request/response. Body: { price, delivery_days, notes }
 // ─────────────────────────────────────────────
 export const createOffer = async (customRequestId, { price, delivery_days, notes }) => {
   const res = await axios.post(
@@ -40,7 +44,10 @@ export const createOffer = async (customRequestId, { price, delivery_days, notes
 // ─────────────────────────────────────────────
 // ALL ORDERS  →  CustomRequestOrdersPage
 // GET /v1/offerRequest/supplier/show/order
-// Response: { success, message, data: [{ id, status, request_id, supplier_id, custom_request: { doctor: { all_user: { email, fullname } } } }], last_page, per_page, total }
+// ⚠️ UNCONFIRMED: inferred from "showAllOrders" sidebar entry, no verified
+// example. Response shape assumed: { success, message, data: [{ id, status,
+// request_id, supplier_id, custom_request: { doctor: { all_user: { email,
+// fullname } } } }], last_page, per_page, total }
 // ─────────────────────────────────────────────
 export const getSupplierOfferOrders = async (page = 1, perPage = 15) => {
   const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show/order`, {
@@ -53,10 +60,12 @@ export const getSupplierOfferOrders = async (page = 1, perPage = 15) => {
 // ─────────────────────────────────────────────
 // ORDER BY ID  →  RequestDetailsPage (supplier order detail)
 // GET /v1/offerRequest/supplier/show/order/{id}
-// Response: { success, message, data: [{ id, request_id, supplier_id, price, delivery_days,
-//   notes, status, created_at, updated_at, custom_request: { id, doctor_id, item[], type,
-//   budget, additionalDetails, expires_at, rent_start_date, rent_end_date, status,
-//   doctor: { all_user: { email, fullname, address } } } }] }
+// ⚠️ UNCONFIRMED: inferred from "showOrderById" sidebar entry, no verified
+// example. Response shape assumed: { success, message, data: [{ id,
+// request_id, supplier_id, price, delivery_days, notes, status, created_at,
+// updated_at, custom_request: { id, doctor_id, item[], type, budget,
+// additionalDetails, expires_at, rent_start_date, rent_end_date, status,
+// doctor: { all_user: { email, fullname, address } } } }] }
 // ─────────────────────────────────────────────
 export const getSupplierOrderById = async (orderId) => {
   const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show/order/${orderId}`, {
@@ -68,13 +77,32 @@ export const getSupplierOrderById = async (orderId) => {
 // ─────────────────────────────────────────────
 // SHOW OPEN OFFER REQUESTS  (supplier's sent offers)
 // GET /v1/offerRequest/supplier/show
-// Response: { success, message, data: [{ id, request_id, supplier_id, price, delivery_days, notes, status }], last_page, per_page, total }
+// ⚠️ UNCONFIRMED: inferred from "showRequest" sidebar entry, no verified
+// example. Response shape assumed: { success, message, data: [{ id,
+// request_id, supplier_id, price, delivery_days, notes, status }],
+// last_page, per_page, total }
 // ─────────────────────────────────────────────
 export const getSupplierOffers = async (page = 1, perPage = 15) => {
   const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show`, {
     headers: authHeaders(),
     params: { page, per_page: perPage },
   });
+  return res.data;
+};
+
+// ─────────────────────────────────────────────
+// SUPPLIER: Assign an order
+// POST /v1/offerRequest/assignOrder/{id}
+// ⚠️ UNCONFIRMED: inferred from "assignOrder" sidebar entry only. Path,
+// param name, and body are a guess. No page currently calls this — wire it
+// up once the real endpoint shape is confirmed.
+// ─────────────────────────────────────────────
+export const assignOrder = async (offerRequestId) => {
+  const res = await axios.post(
+    `${BASE_URL}/v1/offerRequest/assignOrder/${offerRequestId}`,
+    {},
+    { headers: authHeaders() }
+  );
   return res.data;
 };
 
@@ -125,6 +153,17 @@ export const respondToOffer = async (offerRequestId, response) => {
 // ─────────────────────────────────────────────
 export const deleteCustomRequest = async (id) => {
   const res = await axios.delete(`${BASE_URL}/v1/customRequest/delete/${id}`, {
+    headers: authHeaders(),
+  });
+  return res.data;
+};
+
+// ─────────────────────────────────────────────
+// DOCTOR: Cancel a custom request
+// POST /v1/customRequest/cancel/{id}
+// ─────────────────────────────────────────────
+export const cancelCustomRequest = async (id) => {
+  const res = await axios.post(`${BASE_URL}/v1/customRequest/cancel/${id}`, {}, {
     headers: authHeaders(),
   });
   return res.data;
