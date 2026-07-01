@@ -968,3 +968,11 @@
   .or-card-title { font-size: 17px; }
   .mo-form-card { padding: 18px; }
 }
+
+@media (max-width: 420px) {
+  .or-page-title { font-size: 22px; }
+  .or-card-top { flex-direction: column; align-items: flex-start; }
+  .or-price-block { text-align: left; }
+  .rd-title { font-size: 18px; }
+  .mo-form-title { font-size: 18px; }
+}

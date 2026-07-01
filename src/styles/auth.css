@@ -578,3 +578,16 @@
     margin: 0 12px 16px;
   }
 }
+
+@media (max-width: 420px) {
+  .login-card {
+    padding: 26px 16px 22px;
+    border-radius: 16px;
+  }
+  .login-title {
+    font-size: 1.4rem;
+  }
+  .register-header h1 {
+    font-size: 1.35rem;
+  }
+}

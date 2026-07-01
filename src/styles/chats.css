@@ -298,3 +298,13 @@
     padding: 12px 16px;
   }
 }
+
+@media (max-width: 420px) {
+  .ch-title {
+    font-size: 17px;
+  }
+
+  .ch-table {
+    min-width: 560px;
+  }
+}

@@ -345,6 +345,21 @@
   }
 }
 
+@media (max-width: 420px) {
+  .dialog-box {
+    padding: 22px 18px 18px;
+  }
+
+  .prod-thumb {
+    width: 32px;
+    height: 32px;
+  }
+
+  .prod-name {
+    max-width: 90px;
+  }
+}
+
 /* ── Animations ──────────────────────────────────────────────────────────── */
 @keyframes pulse {
   0%, 100% { opacity: 1; }

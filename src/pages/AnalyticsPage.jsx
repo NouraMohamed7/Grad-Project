@@ -115,7 +115,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Bottom row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="analytics-bottom-row">
 
         {/* Sales by Category */}
         <div className="chart-card">

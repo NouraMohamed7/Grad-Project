@@ -141,43 +141,48 @@ export const createProduct = async (productData) => {
 // ─────────────────────────────────────────────────────────────────────
 // POST /v1/product/update/{id}
 // Updates a product (multipart/form-data)
-// Sends ALL fields that have a value — backend decides what to update
+//
+// IMPORTANT: This function is now "diff-only" — it appends ONLY the keys
+// that exist on `productData`. It does NOT assume a fixed list of fields
+// and does NOT resend the whole form. The caller (EditProductPage) is
+// responsible for computing which fields actually changed and passing
+// just those in `productData`.
+//
+// Special keys handled separately:
+//   - images:        array of File objects -> appended as images[]
+//   - specification: array of { key: value } objects -> specification[i][key]
+//   - is_rentable:   normalized to "0" / "1" if present
+// Everything else in productData is sent as a plain scalar field.
 // ─────────────────────────────────────────────────────────────────────
 export const updateProduct = async (productId, productData) => {
   const formData = new FormData();
 
-  const scalarFields = [
-    "name", "price", "stock", "setup_duration", "category_id",
-    "description", "warranty", "configuration", "restock_date",
-    "price_daily", "minimum_rental_days", "maximum_rental_days",
-    "available_units", "preparation_duration",
-  ];
+  const { images, specification, is_rentable, ...rest } = productData;
 
-  // Send every field that has a value
-  scalarFields.forEach((field) => {
-    const val = productData[field];
+  // Only the fields actually passed in (i.e. the ones that changed)
+  Object.entries(rest).forEach(([key, val]) => {
     if (val !== undefined && val !== null && val !== "") {
-      formData.append(field, val);
+      formData.append(key, val);
     }
   });
 
-  // is_rentable must be 0 or 1 (not true/false string)
-  if (productData.is_rentable !== undefined) {
-    formData.append("is_rentable", productData.is_rentable ? "1" : "0");
+  // is_rentable must be 0 or 1 (not true/false string) — only sent if provided
+  if (is_rentable !== undefined) {
+    formData.append("is_rentable", is_rentable ? "1" : "0");
   }
 
-  // Specifications
-  if (productData.specification && productData.specification.length > 0) {
-    productData.specification.forEach((spec, index) => {
+  // Specifications — only sent if provided
+  if (specification && specification.length > 0) {
+    specification.forEach((spec, index) => {
       Object.entries(spec).forEach(([key, value]) => {
         formData.append(`specification[${index}][${key}]`, value);
       });
     });
   }
 
-  // New images
-  if (productData.images && productData.images.length > 0) {
-    productData.images.forEach((img) => formData.append("images[]", img));
+  // New images — only sent if the user actually uploaded new ones
+  if (images && images.length > 0) {
+    images.forEach((img) => formData.append("images[]", img));
   }
 
   try {

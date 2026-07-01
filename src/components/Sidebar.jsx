@@ -113,6 +113,11 @@ export default function Sidebar({ isOpen, onClose }) {
         />
       )}
 
+      {/* Mobile-only backdrop: closes the off-canvas sidebar when tapped */}
+      {isOpen && (
+        <div className="sidebar-overlay" onClick={onClose} />
+      )}
+
       <aside className={`sidebar${isOpen ? ' open' : ''}`}>
         <div className="sidebar-logo">
           <div className="logo-icon">

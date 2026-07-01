@@ -115,29 +115,48 @@ export default function EditProductPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ── Build a diff of only the fields that actually changed ────────────
+  // This is the key change: instead of resending the whole form (name,
+  // price, description, ...) every time, we only send the field(s) the
+  // user actually touched — e.g. edit just "stock" -> only "stock" gets
+  // sent to the API.
+  const getChangedFields = () => {
+    const changed = {};
+
+    Object.keys(form).forEach((key) => {
+      if (key === 'is_rentable') {
+        const newVal = form[key] ? 1 : 0;
+        const oldVal = originalForm[key] ? 1 : 0;
+        if (newVal !== oldVal) changed.is_rentable = newVal;
+        return;
+      }
+      if (String(form[key]) !== String(originalForm[key])) {
+        changed[key] = form[key];
+      }
+    });
+
+    return changed;
+  };
+
   // ── Submit ───────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) { toast.error('Please fix the highlighted errors'); return; }
 
-    // Check if anything actually changed
-    const hasChanges = Object.keys(form).some((key) => {
-      const newVal = key === 'is_rentable' ? (form[key] ? 1 : 0) : form[key];
-      const oldVal = key === 'is_rentable' ? (originalForm[key] ? 1 : 0) : originalForm[key];
-      return String(newVal) !== String(oldVal);
-    });
+    const changedFields = getChangedFields();
 
-    if (!hasChanges && newImages.length === 0) {
+    if (Object.keys(changedFields).length === 0 && newImages.length === 0) {
       return toast.info('No changes detected');
+    }
+
+    // Only attach images if the user actually added new ones
+    if (newImages.length > 0) {
+      changedFields.images = newImages;
     }
 
     setSubmitting(true);
     try {
-      // Send the full form — backend handles what to update
-      await updateProduct(id, {
-        ...form,
-        is_rentable: form.is_rentable ? 1 : 0,
-        images: newImages,
-      });
+      // Send ONLY what changed — not the full form
+      await updateProduct(id, changedFields);
       toast.success('Product updated successfully!');
       navigate('/products');
     } catch (err) {

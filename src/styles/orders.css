@@ -479,3 +479,10 @@
     width: 100%;
   }
 }
+
+@media (max-width: 420px) {
+  .ord-detail-title { font-size: 19px; }
+  .ord-detail-header-card { padding: 18px 18px; }
+  .ord-meta-row { padding: 16px 18px; }
+  .ord-total-amount { font-size: 19px; }
+}
