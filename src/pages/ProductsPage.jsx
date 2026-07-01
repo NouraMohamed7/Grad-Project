@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getAllProducts, deleteProduct, updateProductArchive } from "../apis/Products";
+import { getAllProducts, deleteProduct, updateProductArchive } from "../apis/products";
 
 // API returns: create_pending | create_accepted | create_rejected
 // + any edit_pending / edit_accepted / edit_rejected states

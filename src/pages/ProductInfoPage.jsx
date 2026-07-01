@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { getProductById, getCategories, deleteProduct } from '../apis/Products';
+import { getProductById, getCategories, deleteProduct } from '../apis/products';
 
 // Status map — keys match API values exactly
 const statusConfig = {

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { createProduct, getCategories } from '../apis/Products';
+import { createProduct, getCategories } from '../apis/products';
 
 export default function CreateProductPage() {
   const navigate    = useNavigate();
