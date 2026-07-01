@@ -16,12 +16,14 @@ import "react-toastify/dist/ReactToastify.css";
 import DashboardPage from "./pages/DashboardPage";
 import AnalyticsPage from "./pages/AnalyticsPage";
 import ProductsPage from "./pages/ProductsPage";
+
+
 import CreateProductPage from "./pages/CreateProductPage";
 import EditProductPage from "./pages/EditProductPage";
 import ProductInfoPage from "./pages/ProductInfoPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import ProductRejectionPage from "./pages/ProductRejectionPage";
 import OrdersPage from "./pages/OrdersPage";
-import OrderDetailPage from "./pages/Orderdetailpage";
 
 // PromosPage, ChatPage, SettingsPage are temporary placeholder pages
 import { PromosPage, ChatPage, SettingsPage } from "./pages/PlaceholderPages";
