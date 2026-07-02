@@ -41,10 +41,10 @@ function getRentalDuration(start, end) {
   return diffDays > 0 ? diffDays : 1;
 }
 
-// API returns 'sale' | 'rent'
+// API returns 'sale' | 'rental'
 function getOrderTypeLabel(order_type) {
   if (order_type === 'sale') return 'Sale';
-  if (order_type === 'rent') return 'Rent';
+  if (order_type === 'rental') return 'Rent';
   return order_type ?? '-';
 }
 
@@ -142,7 +142,7 @@ export default function OrderDetailPage() {
 
   // ─── Derived values ───────────────────────────────────────────────────────
   // API returns order_type as 'sale' or 'rent'
-  const isRental      = order.order_type === 'rent';
+ const isRental = order.order_type === 'rental';
   const typeLabel     = getOrderTypeLabel(order.order_type);
   const items         = order.items || [];
   const subtotal      = parseFloat(order.subtotal) || 0;
@@ -193,7 +193,7 @@ export default function OrderDetailPage() {
         <div className="ord-meta-cell">
           <span className="ord-meta-label">ORDER TYPE</span>
           {/* class matches API value: 'sale' or 'rent' */}
-          <span className={`ord-type-badge ${order.order_type}`}>
+         <span className={`ord-type-badge ${order.order_type}`}>
             {typeLabel}
           </span>
         </div>

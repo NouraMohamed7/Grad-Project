@@ -1,25 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { sendMessage, getMessages, markAsRead } from '../apis/chat';
+import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { sendMessage, getMessages, markAsRead } from "../apis/chat";
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function ChatConversationPage() {
-  const { chatId }    = useParams();      
-  const navigate      = useNavigate();
-  const location      = useLocation();
+  const { chatId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const { conversationId, userName, role } = location.state || {};
 
   // ─── States ─────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
-  const [input,    setInput]    = useState('');
-  const [loading,  setLoading]  = useState(true);
-  const [sending,  setSending]  = useState(false);
-  const [error,    setError]    = useState(null);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState(null);
   const [convoInfo, setConvoInfo] = useState({
-    doctorName: userName || 'Doctor',
-    doctorInitials: userName ? userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : 'DR',
-    online: false,
+    doctorName: userName || "Doctor",
+    doctorInitials: userName
+      ? userName
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
+      : "DR",
   });
 
   const bottomRef = useRef(null);
@@ -38,12 +44,13 @@ export default function ChatConversationPage() {
             const apiMessages = res.data || [];
 
             // بنحول الـ API messages للشكل اللي الـ UI بتستخدمه
-            const formattedMessages = apiMessages.map(msg => ({
+            const formattedMessages = apiMessages.map((msg) => ({
               id: msg.id,
-              sender: msg.sender_id === parseInt(chatId) ? 'them' : 'me',
+              sender: msg.sender_id === parseInt(chatId) ? "them" : "me",
               text: msg.body || msg.message,
-              time: new Date(msg.created_at).toLocaleTimeString('en-US', { 
-                hour: '2-digit', minute: '2-digit' 
+              time: new Date(msg.created_at).toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
               }),
               seen: msg.is_read || false,
             }));
@@ -53,7 +60,10 @@ export default function ChatConversationPage() {
             // بنعلم المحادثة مقروءة
             await markAsRead(conversationId);
           } catch (msgErr) {
-            console.log("No existing conversation or messages endpoint not available:", msgErr);
+            console.log(
+              "No existing conversation or messages endpoint not available:",
+              msgErr,
+            );
             // لو مفيش conversation أو الـ endpoint مش شغال، نبدأ بمحادثة فاضية
             setMessages([]);
           }
@@ -76,7 +86,7 @@ export default function ChatConversationPage() {
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
   // ─── Send message ─────────────────────────────────────────
@@ -85,21 +95,24 @@ export default function ChatConversationPage() {
     if (!text || sending) return;
 
     const now = new Date();
-    const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    const time = now.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
     // بنضيف الرسالة في الـ UI على طول (Optimistic UI)
     const tempId = Date.now();
-    const newMessage = { 
-      id: tempId, 
-      sender: 'me', 
-      text, 
-      time, 
+    const newMessage = {
+      id: tempId,
+      sender: "me",
+      text,
+      time,
       seen: false,
-      pending: true  // ← علامة إنها لسه بتتبعت
+      pending: true, // ← علامة إنها لسه بتتبعت
     };
 
-    setMessages(prev => [...prev, newMessage]);
-    setInput('');
+    setMessages((prev) => [...prev, newMessage]);
+    setInput("");
     setSending(true);
 
     try {
@@ -107,29 +120,32 @@ export default function ChatConversationPage() {
       const res = await sendMessage(parseInt(chatId), text);
 
       // لو نجحت، بنحدث الرسالة من pending لـ sent
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempId 
-          ? { 
-              ...msg, 
-              pending: false, 
-              seen: true,
-              id: res.data?.message?.id || tempId  // بنستخدم الـ ID الحقيقي من API
-            } 
-          : msg
-      ));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId
+            ? {
+                ...msg,
+                pending: false,
+                seen: true,
+                id: res.data?.message?.id || tempId, // بنستخدم الـ ID الحقيقي من API
+              }
+            : msg,
+        ),
+      );
 
       // بنحدث الـ conversationId لو هي أول رسالة
       if (!conversationId && res.data?.conversation?.id) {
         // هنا ممكن تستخدم navigate مع state جديد
         // بس لحد ما نعرف الـ behavior الصح، هنسيبها كده
       }
-
     } catch (err) {
       console.error("Error sending message:", err);
       // لو فشلت، بنعلم الرسالة إنها failed
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempId ? { ...msg, pending: false, failed: true } : msg
-      ));
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tempId ? { ...msg, pending: false, failed: true } : msg,
+        ),
+      );
       setError(err.message || "Failed to send message");
     } finally {
       setSending(false);
@@ -137,7 +153,7 @@ export default function ChatConversationPage() {
   };
 
   const handleKey = (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
@@ -148,12 +164,12 @@ export default function ChatConversationPage() {
     if (!msg.failed) return;
 
     // بنشيل الرسالة الفاشلة وبنبعتها تاني
-    setMessages(prev => prev.filter(m => m.id !== msg.id));
+    setMessages((prev) => prev.filter((m) => m.id !== msg.id));
     setInput(msg.text);
   };
 
   // Group messages by date label (simplified — all "TODAY" for now)
-  const dateLabel = 'TODAY';
+  const dateLabel = "TODAY";
 
   // ─── Loading State ────────────────────────────────────────
   if (loading) {
@@ -171,20 +187,15 @@ export default function ChatConversationPage() {
 
   return (
     <div className="cc-page">
-
       {/* ── Top bar ─────────────────────────────────── */}
       <div className="cc-topbar">
-        <button className="cc-back-btn" onClick={() => navigate('/chat')}>
+        <button className="cc-back-btn" onClick={() => navigate("/chat")}>
           <i className="bi bi-arrow-left" />
         </button>
         <div className="cc-doctor-info">
           <div className="cc-doc-avatar">{convoInfo.doctorInitials}</div>
           <div>
             <div className="cc-doc-name">{convoInfo.doctorName}</div>
-            <div className={`cc-doc-status ${convoInfo.online ? 'online' : 'offline'}`}>
-              <span className="cc-dot" />
-              {convoInfo.online ? 'ONLINE' : 'OFFLINE'}
-            </div>
           </div>
         </div>
         <div className="cc-topbar-actions">
@@ -202,10 +213,17 @@ export default function ChatConversationPage() {
 
       {/* ── Error Alert ───────────────────────────── */}
       {error && (
-        <div className="alert alert-danger alert-dismissible fade show m-3" role="alert">
+        <div
+          className="alert alert-danger alert-dismissible fade show m-3"
+          role="alert"
+        >
           <i className="bi bi-exclamation-triangle-fill me-2"></i>
           {error}
-          <button type="button" className="btn-close" onClick={() => setError(null)}></button>
+          <button
+            type="button"
+            className="btn-close"
+            onClick={() => setError(null)}
+          ></button>
         </div>
       )}
 
@@ -217,32 +235,50 @@ export default function ChatConversationPage() {
           <div className="cc-no-messages">No messages yet. Say hello!</div>
         )}
 
-        {messages.map(msg => (
-          <div key={msg.id} className={`cc-msg-row ${msg.sender === 'me' ? 'me' : 'them'}`}>
-            {msg.sender === 'them' && (
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`cc-msg-row ${msg.sender === "me" ? "me" : "them"}`}
+          >
+            {msg.sender === "them" && (
               <div className="cc-msg-avatar">{convoInfo.doctorInitials}</div>
             )}
             <div className="cc-msg-block">
-              <div className={`cc-bubble ${msg.sender === 'me' ? 'cc-bubble-me' : 'cc-bubble-them'}`}>
+              <div
+                className={`cc-bubble ${msg.sender === "me" ? "cc-bubble-me" : "cc-bubble-them"}`}
+              >
                 {msg.text}
                 {msg.pending && (
                   <span className="ms-2">
-                    <div className="spinner-border spinner-border-sm" role="status" style={{ width: '12px', height: '12px' }}>
+                    <div
+                      className="spinner-border spinner-border-sm"
+                      role="status"
+                      style={{ width: "12px", height: "12px" }}
+                    >
                       <span className="visually-hidden">Sending...</span>
                     </div>
                   </span>
                 )}
                 {msg.failed && (
-                  <span className="ms-2 text-danger" title="Failed to send. Click to retry.">
-                    <i className="bi bi-exclamation-circle-fill" style={{ cursor: 'pointer' }} onClick={() => retryMessage(msg)}></i>
+                  <span
+                    className="ms-2 text-danger"
+                    title="Failed to send. Click to retry."
+                  >
+                    <i
+                      className="bi bi-exclamation-circle-fill"
+                      style={{ cursor: "pointer" }}
+                      onClick={() => retryMessage(msg)}
+                    ></i>
                   </span>
                 )}
               </div>
               <div className="cc-msg-meta">
                 <span className="cc-msg-time">{msg.time}</span>
-                {msg.sender === 'me' && !msg.pending && !msg.failed && (
+                {msg.sender === "me" && !msg.pending && !msg.failed && (
                   <span className="cc-seen-tick">
-                    <i className={`bi ${msg.seen ? 'bi-check2-all text-primary' : 'bi-check2'}`} />
+                    <i
+                      className={`bi ${msg.seen ? "bi-check2-all text-primary" : "bi-check2"}`}
+                    />
                   </span>
                 )}
               </div>
@@ -262,7 +298,7 @@ export default function ChatConversationPage() {
           className="cc-input"
           placeholder="Write your message..."
           value={input}
-          onChange={e => setInput(e.target.value)}
+          onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKey}
           rows={1}
           disabled={sending}
@@ -276,13 +312,17 @@ export default function ChatConversationPage() {
           </button>
         </div>
         <button
-          className={`cc-send-btn ${input.trim() && !sending ? 'active' : ''}`}
+          className={`cc-send-btn ${input.trim() && !sending ? "active" : ""}`}
           onClick={handleSendMessage}
           disabled={!input.trim() || sending}
           title="Send"
         >
           {sending ? (
-            <div className="spinner-border spinner-border-sm" role="status" style={{ width: '16px', height: '16px' }}>
+            <div
+              className="spinner-border spinner-border-sm"
+              role="status"
+              style={{ width: "16px", height: "16px" }}
+            >
               <span className="visually-hidden">Sending...</span>
             </div>
           ) : (
@@ -296,7 +336,6 @@ export default function ChatConversationPage() {
         <button className="cc-shortcut-btn active">QUICK REPLIES</button>
         <button className="cc-shortcut-btn">TEMPLATES</button>
       </div>
-
     </div>
   );
 }

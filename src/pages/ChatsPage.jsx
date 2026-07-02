@@ -1,55 +1,68 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getContacts, getConversations } from '../apis/chat';
+import { getConversations } from '../apis/chat';
 import '../styles/chats.css';
 
 const ITEMS_PER_PAGE = 5;
 
+// بنجيب الـ current user عشان نعرف مين الطرف التاني في كل conversation
+const getCurrentUserId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user.id;
+  } catch {
+    return null;
+  }
+};
+
+// بنستخرج بيانات الطرف التاني من الـ conversation object
+// ⚠️ الشكل ده افتراضي لحد ما تبعتيلي response حقيقي فيه بيانات
+const extractOtherParticipant = (convo, currentUserId) => {
+  if (convo.other_participant) return convo.other_participant;
+
+  const isFirstMine = convo.participant_one === currentUserId;
+  const otherDetails = isFirstMine
+    ? convo.participant_two_details || convo.participant_two_user
+    : convo.participant_one_details || convo.participant_one_user;
+
+  if (otherDetails) return otherDetails;
+
+  const otherId = isFirstMine ? convo.participant_two : convo.participant_one;
+  return { id: otherId, fullname: `User #${otherId}`, role: '', email: '' };
+};
+
 export default function ChatsPage() {
   const navigate = useNavigate();
 
-  // ─── States ───────────────────────────────────────────────
-  const [search, setSearch]     = useState('');
-  const [page,   setPage]       = useState(1);
-  const [chats,  setChats]      = useState([]);      // ← بيانات حقيقية من API
-  const [loading, setLoading]   = useState(true);
-  const [error,   setError]     = useState(null);
+  const [search, setSearch]   = useState('');
+  const [page,   setPage]     = useState(1);
+  const [chats,  setChats]    = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error,   setError]   = useState(null);
 
-  // ─── Fetch contacts from API ────────────────────────────────
   useEffect(() => {
     const fetchChats = async () => {
       try {
         setLoading(true);
+        const currentUserId = getCurrentUserId();
 
-        // بنجيب الـ contacts من الـ API
-        const contactsRes = await getContacts();
-
-        // بنجيب الـ conversations عشان نعرف مين اتكلمه قبل كده
         const convosRes = await getConversations();
-
-        // بندمج الـ contacts مع الـ conversations
-        // كل contact هنحوله لشكل الـ chat اللي الصفحة بتستخدمه
-        const contactsData = contactsRes.data || [];
         const convosData = convosRes.data || [];
 
-        // بنعمل map للـ contacts ونضيف معلومات من الـ conversations لو موجودة
-        const formattedChats = contactsData.map(contact => {
-          // بندور على conversation مع الـ contact ده
-          const convo = convosData.find(c => 
-            c.participant_one === contact.id || c.participant_two === contact.id
-          );
+        const formattedChats = convosData.map(convo => {
+          const other = extractOtherParticipant(convo, currentUserId);
 
           return {
-            id: contact.id,                    // ← الـ ID الحقيقي من API
-            userName: contact.fullname,         // ← الاسم من API
-            role: contact.role,                  // ← doctor أو supplier
-            email: contact.email,                // ← الإيميل
-            lastDate: convo 
+            id: other.id,
+            userName: other.fullname || other.full_name || `User #${other.id}`,
+            role: other.role || '',
+            email: other.email || '',
+            lastDate: convo.last_message_at
               ? new Date(convo.last_message_at).toLocaleDateString('en-US', {
                   month: 'short', day: 'numeric', year: 'numeric'
                 })
               : 'No messages yet',
-            conversationId: convo ? convo.id : null, // ← ID المحادثة لو موجودة
+            conversationId: convo.id,
           };
         });
 
@@ -66,7 +79,6 @@ export default function ChatsPage() {
     fetchChats();
   }, []);
 
-  // ─── Search filter ────────────────────────────────────────
   const filtered = chats.filter(c =>
     String(c.id).toLowerCase().includes(search.toLowerCase()) ||
     c.userName.toLowerCase().includes(search.toLowerCase()) ||
@@ -76,18 +88,15 @@ export default function ChatsPage() {
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated  = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
-  // ─── Navigate to chat ─────────────────────────────────────
   const goToChat = (chat) => {
-    // بنبعت الـ receiver_id (id بتاع الشخص) والـ conversation_id لو موجودة
-    navigate(`/chat/${chat.id}`, { 
-      state: { 
+    navigate(`/chat/${chat.id}`, {
+      state: {
         conversationId: chat.conversationId,
         userName: chat.userName,
         role: chat.role,
       }
     });
   };
-
   // ─── Loading State ────────────────────────────────────────
   if (loading) {
     return (

@@ -12,6 +12,7 @@ export default function CreateProductPage() {
   const [images, setImages]         = useState([]);
   const [previews, setPreviews]     = useState([]);
   const [errors, setErrors]         = useState({});
+  const [specFields, setSpecFields] = useState([{ key: '', value: '' }]);
 
   const [form, setForm] = useState({
     name: '',
@@ -93,6 +94,21 @@ export default function CreateProductPage() {
     return Object.keys(newErrors).length === 0;
   };
 
+   // ── Specification handling ───────────────────────────────────────────
+const addSpecField = () => {
+  setSpecFields(prev => [...prev, { key: '', value: '' }]);
+};
+
+const removeSpecField = (index) => {
+  setSpecFields(prev => prev.filter((_, i) => i !== index));
+};
+
+const updateSpecField = (index, field, val) => {
+  setSpecFields(prev =>
+    prev.map((s, i) => (i === index ? { ...s, [field]: val } : s))
+  );
+};
+
   // ── Submit ─────────────────────────────────────────────────────────
   const handleSubmit = async () => {
     if (!validate()) {
@@ -108,10 +124,14 @@ export default function CreateProductPage() {
         images,
       };
 
-      // Add default specification if empty (API might require it)
-      if (!payload.specification || payload.specification.length === 0) {
-        payload.specification = [{ type: 'Standard' }];
-      }
+     // Build specification array from what the supplier actually filled in
+const filledSpecs = specFields
+  .filter(s => s.key.trim() && s.value.trim())
+  .map(s => ({ [s.key.trim()]: s.value.trim() }));
+
+payload.specification = filledSpecs.length > 0
+  ? filledSpecs
+  : [{ type: 'Standard' }]; // fallback لو السبلاير مسيبهاش فاضية
 
       await createProduct(payload);
       toast.success('📋 Product submitted! Awaiting admin approval.', { autoClose: 4000 });
@@ -128,6 +148,7 @@ export default function CreateProductPage() {
     ? <><i className="bi bi-hourglass-split" /> Publishing...</>
     : <><i className="bi bi-send" /> Publish Product</>;
 
+   
   // ── Error helper ───────────────────────────────────────────────────
   const ErrorField = ({ name }) => {
     if (!errors[name]) return null;
@@ -231,7 +252,7 @@ export default function CreateProductPage() {
 
             <div className="form-row-2">
               <div className="form-group">
-                <label className="form-label">Price ($) *</label>
+                <label className="form-label">Price (EGP) *</label>
                 <input 
                   className={`form-input ${errors.price ? 'is-invalid' : ''}`} 
                   name="price" 
@@ -303,6 +324,46 @@ export default function CreateProductPage() {
                 rows={5} 
               />
             </div>
+
+            {/* Specifications */}
+<div className="form-group">
+  <label className="form-label">Specifications</label>
+  {specFields.map((spec, index) => (
+    <div key={index} style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+      <input
+        className="form-input"
+        placeholder="Key (e.g. Weight)"
+        value={spec.key}
+        onChange={(e) => updateSpecField(index, 'key', e.target.value)}
+        style={{ flex: 1 }}
+      />
+      <input
+        className="form-input"
+        placeholder="Value (e.g. 2kg)"
+        value={spec.value}
+        onChange={(e) => updateSpecField(index, 'value', e.target.value)}
+        style={{ flex: 1 }}
+      />
+      <button
+        type="button"
+        className="action-btn prod-btn-delete"
+        onClick={() => removeSpecField(index)}
+        disabled={specFields.length === 1}
+        title="Remove"
+      >
+        <i className="bi bi-trash3" />
+      </button>
+    </div>
+  ))}
+  <button
+    type="button"
+    className="btn-export"
+    onClick={addSpecField}
+    style={{ marginTop: 4 }}
+  >
+    <i className="bi bi-plus" /> Add Specification
+  </button>
+</div>
           </div>
 
           {/* RIGHT: Image */}

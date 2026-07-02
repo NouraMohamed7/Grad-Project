@@ -80,41 +80,71 @@ export default function ProductsPage() {
   const [sortDir,       setSortDir]       = useState("asc");
   const [statusFilter,  setStatusFilter]  = useState("");
 
-  // ── Fetch ───────────────────────────────────────────────────────────────────
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await getAllProducts({
-        page:       currentPage,
-        per_page:   PER_PAGE,
-        sort_by:    sortField,
-        sort_order: sortDir,
-        ...(statusFilter && { filter_by: "status", filter_value: statusFilter }),
-      });
+ // القيم المسموح بيها من الباك اند فقط
+const BACKEND_SORTABLE = ["id", "name", "description", "created_at"];
 
-      // API: { success, message, data: [...], last_page, per_page, total }
-      if (data.success) {
-        setProducts(data.data || []);
-        setLastPage(data.last_page || 1);
-        setTotal(data.total || 0);
-      } else {
-        toast.error(data.message || "Failed to load products");
-      }
-    } catch (err) {
-      toast.error(err?.message || "Something went wrong");
-    } finally {
-      setLoading(false);
+// ── Fetch ───────────────────────────────────────────────────────────────────
+const fetchProducts = useCallback(async () => {
+  setLoading(true);
+  try {
+    const params = {
+      page:     currentPage,
+      per_page: PER_PAGE,
+    };
+
+    // مبعتش sort_by للباك إلا لو كانت القيمة مسموح بيها
+    if (BACKEND_SORTABLE.includes(sortField)) {
+      params.sort_by    = sortField;
+      params.sort_order = sortDir;
     }
-  }, [currentPage, sortField, sortDir, statusFilter]);
+    // ملاحظة: مفيش filter_by=status نهائي، الباك اند مش بيدعمها.
+    // الفلترة بالـ status هتتعمل محليًا في الـ processed useMemo تحت.
 
-  useEffect(() => { fetchProducts(); }, [fetchProducts]);
+    const data = await getAllProducts(params);
 
-  // ── Client-side search on current page ─────────────────────────────────────
-  const processed = useMemo(() => {
-    if (!search.trim()) return products;
+    // API: { success, message, data: [...], last_page, per_page, total }
+    if (data.success) {
+      setProducts(data.data || []);
+      setLastPage(data.last_page || 1);
+      setTotal(data.total || 0);
+    } else {
+      toast.error(data.message || "Failed to load products");
+    }
+  } catch (err) {
+    toast.error(err?.message || "Something went wrong");
+  } finally {
+    setLoading(false);
+  }
+}, [currentPage, sortField, sortDir]); // لاحظ: statusFilter اتشال من هنا لأنه بقى محلي
+
+useEffect(() => { fetchProducts(); }, [fetchProducts]);
+
+// ── Client-side search + local sort/filter for unsupported backend fields ──
+const processed = useMemo(() => {
+  let list = [...products];
+
+  // فلترة الـ status محليًا (الباك اند مش بيدعمها كـ filter_by)
+  if (statusFilter) {
+    list = list.filter(p => p.status === statusFilter);
+  }
+
+  // ترتيب محلي لو الحقل مش من ضمن اللي الباك اند بيدعمه (price / stock)
+  if (!BACKEND_SORTABLE.includes(sortField)) {
+    list.sort((a, b) => {
+      const av = sortField === "price" ? parseFloat(a.price || 0) : (a.stock || 0);
+      const bv = sortField === "price" ? parseFloat(b.price || 0) : (b.stock || 0);
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+  }
+
+  // البحث بالاسم
+  if (search.trim()) {
     const q = search.toLowerCase();
-    return products.filter(p => p.name?.toLowerCase().includes(q));
-  }, [products, search]);
+    list = list.filter(p => p.name?.toLowerCase().includes(q));
+  }
+
+  return list;
+}, [products, search, statusFilter, sortField, sortDir]);
 
   // ── Stats from current page data ────────────────────────────────────────────
   const lowStock   = products.filter(p => p.stock > 0 && p.stock < 10).length;
@@ -330,7 +360,7 @@ export default function ProductsPage() {
                         </td>
 
                         <td className="prod-td prod-price">
-                          ${parseFloat(p.price || 0).toLocaleString()}
+                          EGP {parseFloat(p.price || 0).toLocaleString()}
                         </td>
 
                         <td className="prod-td">

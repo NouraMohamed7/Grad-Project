@@ -168,3 +168,17 @@ export const cancelCustomRequest = async (id) => {
   });
   return res.data;
 };
+
+// ─────────────────────────────────────────────
+// SUPPLIER: Update custom-request order status
+// POST /v1/offerRequest/supplier/order/status/{orderId}
+// Body: { status }  — allowed: "in negotiation" | "shipped" | "delivered"
+// ─────────────────────────────────────────────
+export const updateOfferOrderStatus = async (orderId, status) => {
+  const res = await axios.post(
+    `${BASE_URL}/v1/offerRequest/supplier/order/status/${orderId}`,
+    { status },
+    { headers: authHeaders() }
+  );
+  return res.data;
+};

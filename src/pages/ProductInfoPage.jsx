@@ -150,7 +150,7 @@ export default function ProductInfoPage() {
 
                 <div className="form-row-2">
                   <div className="form-group">
-                    <label className="form-label">Price ($)</label>
+                    <label className="form-label">Price (EGP)</label>
                     <input
                       className="form-input"
                       value={parseFloat(product.price || 0).toLocaleString()}
@@ -246,23 +246,24 @@ export default function ProductInfoPage() {
               </div>
 
               {product.is_rentable && (
-                <div className="rental-fields">
-                  {[
-                    { label: 'DAILY RATE',      value: product.rental_details?.price_daily        ? `$${product.rental_details.price_daily}` : 'N/A' },
-                    { label: 'MIN DAYS',        value: product.rental_details?.minimum_rental_days ?? 'N/A' },
-                    { label: 'MAX DAYS',        value: product.rental_details?.maximum_rental_days ?? 'N/A' },
-                    { label: 'AVAILABLE UNITS', value: product.rental_details?.available_units     ?? 'N/A' },
-                    { label: 'PREP DURATION',   value: product.rental_details?.preparation_duration ?? 'N/A' },
-                  ].map(f => (
-                    <div key={f.label} className="rental-field">
-                      <label className="rental-label">{f.label}</label>
-                      <div className="rental-input-wrap">
-                        <input className="form-input rental-input" value={f.value} disabled readOnly />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+  <div className="rental-fields">
+    {[
+      { label: 'DAILY RATE',      value: product.rental_details?.price_daily        ? `$${product.rental_details.price_daily}` : 'N/A' },
+      { label: 'MIN DAYS',        value: product.rental_details?.minimum_rental_days ?? 'N/A' },
+      { label: 'MAX DAYS',        value: product.rental_details?.maximum_rental_days ?? 'N/A' },
+      { label: 'AVAILABLE UNITS', value: product.rental_details?.available_units     ?? 'N/A' },
+      { label: 'STOCK UNIT',      value: product.stock ?? 'N/A' },
+      { label: 'PREP DURATION',   value: product.rental_details?.preparation_duration ?? 'N/A' },
+    ].map(f => (
+      <div key={f.label} className="rental-field">
+        <label className="rental-label">{f.label}</label>
+        <div className="rental-input-wrap">
+          <input className="form-input rental-input" value={f.value} disabled readOnly />
+        </div>
+      </div>
+    ))}
+  </div>
+)}
             </div>
 
             {/* Specifications */}
