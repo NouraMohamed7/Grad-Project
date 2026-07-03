@@ -579,15 +579,26 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
   .login-card {
-    padding: 26px 16px 22px;
+    padding: 24px 14px 20px;
     border-radius: 16px;
   }
+
   .login-title {
-    font-size: 1.4rem;
-  }
-  .register-header h1 {
     font-size: 1.35rem;
+  }
+
+  .register-header h1 {
+    font-size: 1.3rem;
+  }
+
+  .btn-sign-in,
+  .btn-complete {
+    min-height: 48px;
+  }
+
+  .terms-row {
+    align-items: flex-start;
   }
 }

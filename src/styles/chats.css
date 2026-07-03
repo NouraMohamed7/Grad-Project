@@ -2,7 +2,7 @@
 
 /* ─── Page wrapper ─── */
 .ch-page {
-  padding: 28px 32px;
+  padding: clamp(16px, 2.5vw, 32px);
   min-height: 100vh;
   background: #f0f2f5;
   font-family: 'DM Sans', 'Segoe UI', 'Tahoma', sans-serif;

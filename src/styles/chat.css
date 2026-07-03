@@ -4,7 +4,7 @@
 .cc-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 58px); /* subtract topbar height */
+  height: calc(100dvh - 58px);
   background: #f0f2f5;
   overflow: hidden;
   font-family: 'DM Sans', 'Segoe UI', 'Tahoma', sans-serif;
@@ -501,5 +501,27 @@
 
   .cc-shortcuts {
     padding: 8px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .cc-topbar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .cc-messages {
+    padding: 12px;
+  }
+
+  .cc-input-bar {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .cc-shortcuts {
+    gap: 12px;
+    overflow-x: auto;
+    padding: 8px 12px;
   }
 }

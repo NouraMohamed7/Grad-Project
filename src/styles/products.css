@@ -5,8 +5,8 @@
   position: fixed;
   inset: 0;
   background: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   z-index: 9998;
   animation: fadeInBackdrop 0.18s ease;
 }
@@ -154,6 +154,7 @@
   background: #fafafa;
   border-bottom: 1px solid #f0f0f0;
   white-space: nowrap;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -345,9 +346,18 @@
   }
 }
 
-@media (max-width: 420px) {
+@media (max-width: 480px) {
+  .products-table-wrap {
+    margin: 0 -4px;
+  }
+
   .dialog-box {
     padding: 22px 18px 18px;
+  }
+
+  .prod-td,
+  .prod-th {
+    padding: 10px 12px;
   }
 
   .prod-thumb {

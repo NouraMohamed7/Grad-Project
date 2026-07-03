@@ -8,7 +8,7 @@ export default function ChatConversationPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { conversationId, userName, role, profileImage } = location.state || {};
+  const { conversationId, userName, profileImage } = location.state || {};
 
   // ─── States ─────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
