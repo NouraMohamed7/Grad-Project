@@ -258,7 +258,7 @@ export default function Register() {
       </div>
 
       {/* ── Registration form ── */}
-      <div className="container" style={{ maxWidth: 760, paddingBottom: 60 }}>
+      <div className="register-form-container">
         <form onSubmit={handleSubmit} noValidate>
 
           {/* ════ Section 1: Personal Information ════ */}
