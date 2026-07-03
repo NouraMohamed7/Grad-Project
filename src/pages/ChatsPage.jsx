@@ -5,30 +5,14 @@ import '../styles/chats.css';
 
 const ITEMS_PER_PAGE = 5;
 
-// بنجيب الـ current user عشان نعرف مين الطرف التاني في كل conversation
-const getCurrentUserId = () => {
-  try {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    return user.id;
-  } catch {
-    return null;
-  }
-};
-
-// بنستخرج بيانات الطرف التاني من الـ conversation object
-// ⚠️ الشكل ده افتراضي لحد ما تبعتيلي response حقيقي فيه بيانات
-const extractOtherParticipant = (convo, currentUserId) => {
-  if (convo.other_participant) return convo.other_participant;
-
-  const isFirstMine = convo.participant_one === currentUserId;
-  const otherDetails = isFirstMine
-    ? convo.participant_two_details || convo.participant_two_user
-    : convo.participant_one_details || convo.participant_one_user;
-
-  if (otherDetails) return otherDetails;
-
-  const otherId = isFirstMine ? convo.participant_two : convo.participant_one;
-  return { id: otherId, fullname: `User #${otherId}`, role: '', email: '' };
+// بنجيب صورة البروفايل لو موجودة (سواء دكتور أو supplier)
+const getProfileImage = (otherUser) => {
+  return (
+    otherUser?.doctor?.profile_image_url ||
+    otherUser?.supplier?.profile_image_url ||
+    otherUser?.supplier?.company_image_url ||
+    null
+  );
 };
 
 export default function ChatsPage() {
@@ -44,25 +28,25 @@ export default function ChatsPage() {
     const fetchChats = async () => {
       try {
         setLoading(true);
-        const currentUserId = getCurrentUserId();
 
         const convosRes = await getConversations();
         const convosData = convosRes.data || [];
 
+        // الشكل الحقيقي بيرجع: { id, other_user: { id, fullname, role, doctor/supplier }, last_message_at }
         const formattedChats = convosData.map(convo => {
-          const other = extractOtherParticipant(convo, currentUserId);
+          const other = convo.other_user || {};
 
           return {
-            id: other.id,
-            userName: other.fullname || other.full_name || `User #${other.id}`,
+            id: other.id,                          // ← ID المستخدم التاني (نستخدمه للـ navigate)
+            userName: other.fullname || `User #${other.id}`,
             role: other.role || '',
-            email: other.email || '',
+            profileImage: getProfileImage(other),
             lastDate: convo.last_message_at
               ? new Date(convo.last_message_at).toLocaleDateString('en-US', {
                   month: 'short', day: 'numeric', year: 'numeric'
                 })
               : 'No messages yet',
-            conversationId: convo.id,
+            conversationId: convo.id,               // ← ID المحادثة نفسها
           };
         });
 
@@ -79,10 +63,9 @@ export default function ChatsPage() {
     fetchChats();
   }, []);
 
+  // بندور بالـ ID زي التصميم
   const filtered = chats.filter(c =>
-    String(c.id).toLowerCase().includes(search.toLowerCase()) ||
-    c.userName.toLowerCase().includes(search.toLowerCase()) ||
-    c.email.toLowerCase().includes(search.toLowerCase())
+    String(c.id).toLowerCase().includes(search.toLowerCase())
   );
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
@@ -94,9 +77,11 @@ export default function ChatsPage() {
         conversationId: chat.conversationId,
         userName: chat.userName,
         role: chat.role,
+        profileImage: chat.profileImage,
       }
     });
   };
+
   // ─── Loading State ────────────────────────────────────────
   if (loading) {
     return (
@@ -130,8 +115,8 @@ export default function ChatsPage() {
             <div className="ch-empty text-danger" style={{ padding: '40px' }}>
               <i className="bi bi-exclamation-triangle-fill fs-1"></i>
               <p className="mt-3">{error}</p>
-              <button 
-                className="btn btn-primary mt-2" 
+              <button
+                className="btn btn-primary mt-2"
                 onClick={() => window.location.reload()}
               >
                 Retry
@@ -156,13 +141,13 @@ export default function ChatsPage() {
               <input
                 className="ch-search"
                 type="text"
-                placeholder="Search by name or email..."
+                placeholder="Search by ID..."
                 value={search}
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
             <button className="ch-new-btn" onClick={() => navigate('/chat/new')}>
-              <i className="bi bi-plus" /> New Chat
+              <i className="bi bi-plus" /> New Offer
             </button>
           </div>
         </div>
@@ -174,42 +159,23 @@ export default function ChatsPage() {
               <tr>
                 <th>ID</th>
                 <th>USER NAME</th>
-                <th>ROLE</th>
                 <th>LAST DATE</th>
               </tr>
             </thead>
             <tbody>
               {paginated.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="ch-empty">No chats found.</td>
+                  <td colSpan={3} className="ch-empty">No chats found.</td>
                 </tr>
               ) : paginated.map(chat => (
                 <tr
-                  key={chat.id}
+                  key={chat.conversationId ?? chat.id}
                   className="ch-row"
                   onClick={() => goToChat(chat)}
                   style={{ cursor: 'pointer' }}
                 >
                   <td className="ch-id">#{chat.id}</td>
-                  <td className="ch-username">
-                    <div className="d-flex align-items-center gap-2">
-                      <div 
-                        className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center"
-                        style={{ width: '32px', height: '32px', fontSize: '12px', fontWeight: 'bold' }}
-                      >
-                        {chat.userName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)}
-                      </div>
-                      <div>
-                        <div>{chat.userName}</div>
-                        <small className="text-muted">{chat.email}</small>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="ch-role">
-                    <span className={`badge ${chat.role === 'doctor' ? 'bg-info' : 'bg-success'}`}>
-                      {chat.role}
-                    </span>
-                  </td>
+                  <td className="ch-username">{chat.userName}</td>
                   <td className="ch-date">{chat.lastDate}</td>
                 </tr>
               ))}
@@ -222,7 +188,7 @@ export default function ChatsPage() {
           <span className="ch-count">
             Showing{' '}
             <strong>{filtered.length > 0 ? ((page - 1) * ITEMS_PER_PAGE) + 1 : 0}–{Math.min(page * ITEMS_PER_PAGE, filtered.length)}</strong>
-            {' '}of <strong>{filtered.length}</strong> contacts
+            {' '}of <strong>{filtered.length}</strong> offers
           </span>
           <div className="ch-pagination">
             <button className="ch-page-btn" disabled={page === 1} onClick={() => setPage(p => p - 1)}>

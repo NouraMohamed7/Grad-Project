@@ -8,7 +8,7 @@ export default function ChatConversationPage() {
   const navigate = useNavigate();
   const location = useLocation();
 
-  const { conversationId, userName, role } = location.state || {};
+  const { conversationId, userName, role, profileImage } = location.state || {};
 
   // ─── States ─────────────────────────────────────────────────
   const [messages, setMessages] = useState([]);
@@ -26,6 +26,7 @@ export default function ChatConversationPage() {
           .toUpperCase()
           .slice(0, 2)
       : "DR",
+    profileImage: profileImage || null,
   });
 
   const bottomRef = useRef(null);
@@ -171,6 +172,14 @@ export default function ChatConversationPage() {
   // Group messages by date label (simplified — all "TODAY" for now)
   const dateLabel = "TODAY";
 
+  // Avatar جوه الـ topbar وجوه رسايل "them" — صورة حقيقية لو موجودة، وإلا initials
+  const renderAvatar = (className) =>
+    convoInfo.profileImage ? (
+      <img src={convoInfo.profileImage} alt={convoInfo.doctorName} className={className} />
+    ) : (
+      <div className={className}>{convoInfo.doctorInitials}</div>
+    );
+
   // ─── Loading State ────────────────────────────────────────
   if (loading) {
     return (
@@ -193,7 +202,7 @@ export default function ChatConversationPage() {
           <i className="bi bi-arrow-left" />
         </button>
         <div className="cc-doctor-info">
-          <div className="cc-doc-avatar">{convoInfo.doctorInitials}</div>
+          {renderAvatar("cc-doc-avatar")}
           <div>
             <div className="cc-doc-name">{convoInfo.doctorName}</div>
           </div>
@@ -240,9 +249,7 @@ export default function ChatConversationPage() {
             key={msg.id}
             className={`cc-msg-row ${msg.sender === "me" ? "me" : "them"}`}
           >
-            {msg.sender === "them" && (
-              <div className="cc-msg-avatar">{convoInfo.doctorInitials}</div>
-            )}
+            {msg.sender === "them" && renderAvatar("cc-msg-avatar")}
             <div className="cc-msg-block">
               <div
                 className={`cc-bubble ${msg.sender === "me" ? "cc-bubble-me" : "cc-bubble-them"}`}
