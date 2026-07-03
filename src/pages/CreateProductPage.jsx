@@ -8,6 +8,7 @@ export default function CreateProductPage() {
   const navigate    = useNavigate();
   const [submitting, setSubmitting] = useState(false);
   const [categories, setCategories] = useState([]);
+  const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [dragOver, setDragOver]     = useState(false);
   const [images, setImages]         = useState([]);
   const [previews, setPreviews]     = useState([]);
@@ -35,9 +36,25 @@ export default function CreateProductPage() {
 
   // ── Load categories ─────────────────────────────────────────────────
   useEffect(() => {
-    getCategories()
-      .then(data => setCategories(data.data || []))
-      .catch(() => toast.error('Failed to load categories'));
+    let active = true;
+    setCategoriesLoading(true);
+
+    getCategories(1, 100)
+      .then((data) => {
+        if (!active) return;
+        setCategories(Array.isArray(data?.data) ? data.data : []);
+      })
+      .catch(() => {
+        if (active) {
+          toast.error('Failed to load categories');
+          setCategories([]);
+        }
+      })
+      .finally(() => {
+        if (active) setCategoriesLoading(false);
+      });
+
+    return () => { active = false; };
   }, []);
 
   // ── Field change ───────────────────────────────────────────────────
@@ -231,8 +248,8 @@ payload.specification = filledSpecs.length > 0
                   value={form.category_id} 
                   onChange={handleChange}
                 >
-                  <option value="">Select Category</option>
-                  {categories.map(c => (
+                  <option value="">{categoriesLoading ? 'Loading categories...' : (categories.length ? 'Select Category' : 'No categories available')}</option>
+                  {!categoriesLoading && categories.map(c => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
                 </select>

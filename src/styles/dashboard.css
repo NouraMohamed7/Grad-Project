@@ -103,6 +103,10 @@ body {
   text-decoration: none;
   transition: all 0.15s ease;
   position: relative;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
 }
 
 .nav-item:hover {
@@ -117,6 +121,73 @@ body {
 
 .nav-item .nav-icon {
   font-size: 18px;
+}
+
+.nav-parent.expanded {
+  background: #f5f7fa;
+  color: #1a1d23;
+}
+
+.nav-chevron {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+  font-size: 12px;
+  color: #9ca3af;
+}
+
+.nav-chevron.open {
+  transform: rotate(90deg);
+}
+
+.nav-children {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 4px 0 6px 24px;
+}
+
+.nav-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #6b7280;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+  position: relative;
+}
+
+.nav-child:hover {
+  background: #f5f7fa;
+  color: #1a1d23;
+}
+
+.nav-child.active {
+  color: #2563eb;
+  background: #eff6ff;
+}
+
+.nav-child.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 16px;
+  border-radius: 999px;
+  background: #2563eb;
+}
+
+.nav-child-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.7;
 }
 
 .nav-badge {

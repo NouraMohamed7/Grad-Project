@@ -1,15 +1,24 @@
 // src/components/Sidebar.jsx
 import React, { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
-import { logoutUser } from "../apis/auth";
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { logoutUser } from '../apis/auth';
 import { toast } from 'react-toastify';
 
 const navItems = [
-  { to: '/home',     icon: 'bi-grid-fill',       label: 'Dashboard' },
-  { to: '/products', icon: 'bi-box-seam-fill',    label: 'Products' },
-  { to: '/orders',   icon: 'bi-cart3',            label: 'Orders' },
-  { to: '/requests', icon: 'bi-tools',            label: 'Custom Requests' },
-  { to: '/chat',     icon: 'bi-chat-dots-fill',   label: 'Chat' },
+  { to: '/home', icon: 'bi-grid-fill', label: 'Dashboard' },
+  { to: '/products', icon: 'bi-box-seam-fill', label: 'Products' },
+  { to: '/orders', icon: 'bi-cart3', label: 'Orders' },
+  {
+    type: 'parent',
+    icon: 'bi-tools',
+    label: 'Custom Requests',
+    children: [
+      { to: '/requests/open', label: 'Open Requests' },
+      { to: '/requests/offers', label: 'My Offers' },
+      { to: '/requests/orders', label: 'Orders' },
+    ],
+  },
+  { to: '/chat', icon: 'bi-chat-dots-fill', label: 'Chat' },
 ];
 
 function LogoutDialog({ onConfirm, onCancel }) {
@@ -83,12 +92,14 @@ function LogoutDialog({ onConfirm, onCancel }) {
 
 export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showLogout, setShowLogout] = useState(false);
+  const [customRequestsOpen, setCustomRequestsOpen] = useState(location.pathname.startsWith('/requests'));
 
   const userRaw = localStorage.getItem('user');
   const user = userRaw ? JSON.parse(userRaw) : null;
   const userName = user?.fullname || user?.name || 'Supplier';
-  const userOrg  = user?.company_name || user?.organization || 'MedEquip';
+  const userOrg = user?.company_name || user?.organization || 'MedEquip';
   const userInitial = (userName[0] || 'S').toUpperCase();
 
   const handleLogoutConfirm = async () => {
@@ -103,6 +114,8 @@ export default function Sidebar({ isOpen, onClose }) {
     toast.success('Signed out successfully');
     navigate('/login', { replace: true });
   };
+
+  const isPathActive = (path) => location.pathname === path || location.pathname.startsWith(`${path}/`);
 
   return (
     <>
@@ -123,17 +136,50 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <nav className="sidebar-nav">
           <div className="nav-section-label">Main Menu</div>
-          {navItems.map(item => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-              onClick={onClose}
-            >
-              <i className={`bi ${item.icon} nav-icon`} />
-              <span style={{ flex: 1 }}>{item.label}</span>
-            </NavLink>
-          ))}
+          {navItems.map((item) => {
+            if (item.type === 'parent') {
+              return (
+                <div key={item.label}>
+                  <button
+                    type="button"
+                    className={`nav-item nav-parent${customRequestsOpen ? ' expanded' : ''}${isPathActive('/requests') ? ' active' : ''}`}
+                    onClick={() => setCustomRequestsOpen((value) => !value)}
+                  >
+                    <i className={`bi ${item.icon} nav-icon`} />
+                    <span style={{ flex: 1 }}>{item.label}</span>
+                    <i className={`bi bi-chevron-right nav-chevron${customRequestsOpen ? ' open' : ''}`} />
+                  </button>
+                  {customRequestsOpen && (
+                    <div className="nav-children">
+                      {item.children.map((child) => (
+                        <NavLink
+                          key={child.to}
+                          to={child.to}
+                          className={({ isActive }) => `nav-child${isActive ? ' active' : ''}`}
+                          onClick={onClose}
+                        >
+                          <span className="nav-child-dot" />
+                          <span>{child.label}</span>
+                        </NavLink>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                onClick={onClose}
+              >
+                <i className={`bi ${item.icon} nav-icon`} />
+                <span style={{ flex: 1 }}>{item.label}</span>
+              </NavLink>
+            );
+          })}
 
           <div className="nav-section-label" style={{ marginTop: 12 }}>Account</div>
           <NavLink

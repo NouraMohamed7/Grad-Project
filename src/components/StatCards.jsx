@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { getSupplierOrders } from '../apis/orders';
 import { getAllProducts } from '../apis/products';
 import { getSupplierOffers } from '../apis/requests';
+import { getDashboardMetrics } from '../utils/dashboardMetrics';
 
 export default function StatCards() {
   const [stats, setStats] = useState({
@@ -29,60 +30,19 @@ export default function StatCards() {
         console.log('📦 offersRes:', offersRes);
         console.log('📦 productsRes:', productsRes);
 
-        // ── Orders stats ──
-        let totalRevenue = 0;
-        let pendingOrders = 0;
-        if (ordersRes.status === 'fulfilled' && ordersRes.value?.data) {
-          const orders = ordersRes.value.data;
-          orders.forEach((o) => {
-            if (['paid', 'confirmed', 'delivered'].includes(o.status)) {
-              totalRevenue += parseFloat(o.total || 0);
-            }
-            if (o.status === 'pending') pendingOrders++;
-          });
-        }
+        const orders = ordersRes.status === 'fulfilled' ? (Array.isArray(ordersRes.value?.data) ? ordersRes.value.data : []) : [];
+        const offers = offersRes.status === 'fulfilled' ? (Array.isArray(offersRes.value?.data) ? offersRes.value.data : []) : [];
+        const products = productsRes.status === 'fulfilled' ? (Array.isArray(productsRes.value?.data) ? productsRes.value.data : []) : [];
 
-        // ── Custom requests (offers) stats ──
-        let customRequests = 0;
-        let completedRequests = 0;
-        if (offersRes.status === 'fulfilled' && offersRes.value?.data) {
-          const offers = offersRes.value.data;
-          customRequests = offers.length;
-          completedRequests = offers.filter((o) => o.status === 'accepted').length;
-        }
-
-        // ── Products stats ──
-        let totalProducts = 0;
-        let lowStock = 0;
-
-        if (productsRes.status === 'fulfilled' && productsRes.value) {
-          console.log('🔍 productsRes.value:', productsRes.value);
-
-          // Try all possible locations for total
-          totalProducts = 
-            productsRes.value?.total ?? 
-            productsRes.value?.data?.total ?? 
-            productsRes.value?.meta?.total ?? 
-            0;
-
-          // Fallback: count data array length
-          const products = productsRes.value?.data || [];
-          if (totalProducts === 0 && Array.isArray(products) && products.length > 0) {
-            totalProducts = products.length;
-          }
-
-          lowStock = products.filter((p) => p.stock <= 5).length;
-        }
-
-        console.log('✅ Final stats:', { totalRevenue, pendingOrders, totalProducts, customRequests, lowStock, completedRequests });
+        const derived = getDashboardMetrics({ orders, products, offers });
 
         setStats({
-          totalRevenue,
-          pendingOrders,
-          totalProducts,
-          customRequests,
-          lowStock,
-          completedRequests,
+          totalRevenue: derived.totalRevenue,
+          pendingOrders: derived.pendingOrders,
+          totalProducts: derived.totalProducts,
+          customRequests: derived.customRequests,
+          lowStock: derived.lowStock,
+          completedRequests: derived.completedRequests,
         });
       } catch (err) {
         console.error('StatCards fetch error:', err);

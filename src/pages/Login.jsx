@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from "react-toastify";
-import { supplierLogin } from "../apis/auth";
+import { supplierLogin, persistAuthState } from "../apis/auth";
 
 
 // ─── ErrorField component ─────────────────────────────────────────────────────
@@ -102,8 +102,9 @@ export default function Login() {
       console.log("Login response:", JSON.stringify(data, null, 2));
 
       // ── Extract token & user from all possible response shapes ─────────
-      const token = data?.token || data?.data?.token;
-      const user  = data?.user  || data?.data?.user  || data?.data;
+      const authState = persistAuthState(data);
+      const token = authState.token;
+      const user  = authState.user || data?.user || data?.data?.user || data?.data;
 
       if (!token) {
         // API returned 200 but no token — treat as error

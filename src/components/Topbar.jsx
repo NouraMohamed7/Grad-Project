@@ -33,15 +33,7 @@ export default function Topbar({ onMenuToggle }) {
       </div>
 
       {/* Actions */}
-      <div className="topbar-actions">
-        <button className="icon-btn" title="Notifications">
-          <i className="bi bi-bell" />
-          <span className="notif-dot" />
-        </button>
-        <button className="icon-btn" title="Help">
-          <i className="bi bi-question-circle" />
-        </button>
-      </div>
+    
     </header>
   );
 }

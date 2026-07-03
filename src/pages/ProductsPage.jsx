@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
-import { getAllProducts, deleteProduct, updateProductArchive } from "../apis/products";
+import { getAllProducts, deleteProduct, updateProductArchive, searchProducts } from "../apis/products";
 
 // API returns: create_pending | create_accepted | create_rejected
 // + any edit_pending / edit_accepted / edit_rejected states
@@ -71,6 +71,7 @@ export default function ProductsPage() {
   const [products,      setProducts]      = useState([]);
   const [loading,       setLoading]       = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const [apiError,      setApiError]      = useState("");
   const [confirm,       setConfirm]       = useState(null);
   const [currentPage,   setCurrentPage]   = useState(1);
   const [lastPage,      setLastPage]      = useState(1);
@@ -86,36 +87,41 @@ const BACKEND_SORTABLE = ["id", "name", "description", "created_at"];
 // ── Fetch ───────────────────────────────────────────────────────────────────
 const fetchProducts = useCallback(async () => {
   setLoading(true);
+  setApiError("");
   try {
     const params = {
       page:     currentPage,
       per_page: PER_PAGE,
     };
 
-    // مبعتش sort_by للباك إلا لو كانت القيمة مسموح بيها
     if (BACKEND_SORTABLE.includes(sortField)) {
       params.sort_by    = sortField;
       params.sort_order = sortDir;
     }
-    // ملاحظة: مفيش filter_by=status نهائي، الباك اند مش بيدعمها.
-    // الفلترة بالـ status هتتعمل محليًا في الـ processed useMemo تحت.
 
-    const data = await getAllProducts(params);
+    const data = search.trim()
+      ? await searchProducts({ ...params, search: search.trim() })
+      : await getAllProducts(params);
 
-    // API: { success, message, data: [...], last_page, per_page, total }
-    if (data.success) {
-      setProducts(data.data || []);
-      setLastPage(data.last_page || 1);
-      setTotal(data.total || 0);
+    if (data?.success !== false) {
+      setProducts(Array.isArray(data?.data) ? data.data : []);
+      setLastPage(data?.last_page || 1);
+      setTotal(data?.total || 0);
     } else {
-      toast.error(data.message || "Failed to load products");
+      setProducts([]);
+      setLastPage(1);
+      setTotal(0);
+      setApiError(data?.message || "Failed to load products");
     }
   } catch (err) {
-    toast.error(err?.message || "Something went wrong");
+    setProducts([]);
+    setLastPage(1);
+    setTotal(0);
+    setApiError(err?.message || "Something went wrong");
   } finally {
     setLoading(false);
   }
-}, [currentPage, sortField, sortDir]); // لاحظ: statusFilter اتشال من هنا لأنه بقى محلي
+}, [currentPage, sortField, sortDir, search]);
 
 useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
@@ -123,12 +129,10 @@ useEffect(() => { fetchProducts(); }, [fetchProducts]);
 const processed = useMemo(() => {
   let list = [...products];
 
-  // فلترة الـ status محليًا (الباك اند مش بيدعمها كـ filter_by)
   if (statusFilter) {
     list = list.filter(p => p.status === statusFilter);
   }
 
-  // ترتيب محلي لو الحقل مش من ضمن اللي الباك اند بيدعمه (price / stock)
   if (!BACKEND_SORTABLE.includes(sortField)) {
     list.sort((a, b) => {
       const av = sortField === "price" ? parseFloat(a.price || 0) : (a.stock || 0);
@@ -137,14 +141,8 @@ const processed = useMemo(() => {
     });
   }
 
-  // البحث بالاسم
-  if (search.trim()) {
-    const q = search.toLowerCase();
-    list = list.filter(p => p.name?.toLowerCase().includes(q));
-  }
-
   return list;
-}, [products, search, statusFilter, sortField, sortDir]);
+}, [products, statusFilter, sortField, sortDir]);
 
   // ── Stats from current page data ────────────────────────────────────────────
   const lowStock   = products.filter(p => p.stock > 0 && p.stock < 10).length;
@@ -240,6 +238,12 @@ const processed = useMemo(() => {
           </div>
         ))}
       </div>
+
+      {apiError && (
+        <div className="alert alert-danger" style={{ marginBottom: 16 }}>
+          {apiError}
+        </div>
+      )}
 
       {/* Table card */}
       <div className="orders-card">

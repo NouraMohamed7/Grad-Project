@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   AreaChart,
   Area,
@@ -8,23 +8,8 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from 'recharts';
-
-const data7Days = [
-  { day: 'Mon', value: 11000 },
-  { day: 'Tue', value: 19500 },
-  { day: 'Wed', value: 15200 },
-  { day: 'Thu', value: 25500 },
-  { day: 'Fri', value: 21000 },
-  { day: 'Sat', value: 29000 },
-  { day: 'Sun', value: 27200 },
-];
-
-const data30Days = [
-  { day: 'W1', value: 58000 },
-  { day: 'W2', value: 72000 },
-  { day: 'W3', value: 65000 },
-  { day: 'W4', value: 81000 },
-];
+import { getSupplierOrders } from '../apis/orders';
+import { buildSalesSeries } from '../utils/dashboardMetrics';
 
 const formatYAxis = (v) => `$${v / 1000}k`;
 
@@ -52,7 +37,30 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export default function SalesChart() {
   const [range, setRange] = useState('7');
-  const data = range === '7' ? data7Days : data30Days;
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const res = await getSupplierOrders();
+        if (active) {
+          setOrders(Array.isArray(res?.data) ? res.data : []);
+        }
+      } catch (error) {
+        console.error('SalesChart load error:', error);
+        if (active) setOrders([]);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+
+    load();
+    return () => { active = false; };
+  }, []);
+
+  const data = useMemo(() => buildSalesSeries(orders, range), [orders, range]);
 
   return (
     <div className="chart-card">
@@ -67,8 +75,13 @@ export default function SalesChart() {
           <option value="30">Last 30 Days</option>
         </select>
       </div>
+      {loading ? (
+        <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+          Loading sales data...
+        </div>
+      ) : (
       <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+        <AreaChart data={data.length ? data : [{ label: 'No data', value: 0 }]} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
           <defs>
             <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
@@ -77,7 +90,7 @@ export default function SalesChart() {
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f5" vertical={false} />
           <XAxis
-            dataKey="day"
+            dataKey={range === '7' ? 'label' : 'label'}
             tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
             axisLine={false}
             tickLine={false}
@@ -101,6 +114,7 @@ export default function SalesChart() {
           />
         </AreaChart>
       </ResponsiveContainer>
+      )}
     </div>
   );
 }

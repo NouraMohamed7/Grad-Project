@@ -1,184 +1,151 @@
 // src/apis/requests.js
 import axios from 'axios';
 
-const BASE_URL = 'https://medconnect-one-pi.vercel.app/api/api';
+const BASE_URL = 'https://medconnect-one-pi.vercel.app/api/api/v1';
 
-const authHeaders = () => ({
-  Accept: 'application/json',
-  Authorization: `Bearer ${localStorage.getItem('token')}`,
-});
+const getStoredToken = (role = 'supplier') => {
+  const tokenKey = role === 'doctor' ? 'doctor_token' : 'supplier_token';
+  return localStorage.getItem(tokenKey) || localStorage.getItem('token');
+};
 
-// ─────────────────────────────────────────────
-// OPEN REQUESTS  →  OpenRequestsPage (Supplier view)
-// GET /v1/customRequest/supplier/show?per_page=15&page=1
-// ⚠️ CONFIRMED from Postman spec: this endpoint does NOT accept a `status`
-// param (unlike /v1/customRequest/doctor/show which does). Removed it.
-// Response: { success, message, data: [...], last_page, per_page, total }
-// Each item: { id, doctor_id, additionalDetails, budget, item[], type, expires_at,
-//              rent_start_date, rent_end_date, status, created_at, updated_at }
-// ─────────────────────────────────────────────
+const authHeaders = (role = 'supplier') => {
+  const token = getStoredToken(role);
+  return {
+    Accept: 'application/json',
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+};
+
+const extractMessage = (error) => {
+  const data = error?.response?.data;
+  if (typeof data === 'string') return data;
+  if (typeof data?.message === 'string' && data.message) return data.message;
+  if (typeof data?.error === 'string' && data.error) return data.error;
+  if (data?.errors && typeof data.errors === 'object') {
+    return Object.values(data.errors).flat().join(' | ');
+  }
+  return error?.message || 'Request failed';
+};
+
+export const getErrorMessage = (error) => extractMessage(error);
+
+// ✅ CONFIRMED via Postman docs: GET /v1/customRequest/supplier/show
+// Supplier's view of all open custom requests from doctors
 export const getOpenRequests = async (page = 1, perPage = 15) => {
-  const res = await axios.get(`${BASE_URL}/v1/customRequest/supplier/show`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/customRequest/supplier/show`, {
+    headers: authHeaders('supplier'),
     params: { page, per_page: perPage },
   });
-  return res.data; // { success, data: [], last_page, per_page, total }
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// CREATE OFFER  →  MakeOfferPage
+// ✅ CONFIRMED via Postman docs (July 2026):
 // POST /v1/offerRequest/create/{customRequestId}
-// ⚠️ UNCONFIRMED: path/body inferred from naming only ("create" under
-// offerRequest > supplier in the Postman sidebar). Not verified against an
-// actual example request/response. Body: { price, delivery_days, notes }
-// ─────────────────────────────────────────────
+// The customRequestId goes in the URL path (not in request body).
+// Body contains only: price, delivery_days, notes
 export const createOffer = async (customRequestId, { price, delivery_days, notes }) => {
-  const res = await axios.post(
-    `${BASE_URL}/v1/offerRequest/create/${customRequestId}`,
-    { price, delivery_days, notes },
-    { headers: authHeaders() }
+  const response = await axios.post(
+    `${BASE_URL}/offerRequest/create/${customRequestId}`,
+    {
+      price: Number(price),
+      delivery_days: Number(delivery_days),
+      notes: notes?.trim() || '',
+    },
+    { headers: authHeaders('supplier') }
   );
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// ALL ORDERS  →  CustomRequestOrdersPage
-// GET /v1/offerRequest/supplier/show/order
-// ⚠️ UNCONFIRMED: inferred from "showAllOrders" sidebar entry, no verified
-// example. Response shape assumed: { success, message, data: [{ id, status,
-// request_id, supplier_id, custom_request: { doctor: { all_user: { email,
-// fullname } } } }], last_page, per_page, total }
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: GET /v1/offerRequest/supplier/show/order
+// (list all orders without id segment). This is the "list all" sibling,
+// following the same pattern as product/doctor/show vs product/doctor/show/{id}.
 export const getSupplierOfferOrders = async (page = 1, perPage = 15) => {
-  const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show/order`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/offerRequest/supplier/show/order`, {
+    headers: authHeaders('supplier'),
     params: { page, per_page: perPage },
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// ORDER BY ID  →  RequestDetailsPage (supplier order detail)
-// GET /v1/offerRequest/supplier/show/order/{id}
-// ⚠️ UNCONFIRMED: inferred from "showOrderById" sidebar entry, no verified
-// example. Response shape assumed: { success, message, data: [{ id,
-// request_id, supplier_id, price, delivery_days, notes, status, created_at,
-// updated_at, custom_request: { id, doctor_id, item[], type, budget,
-// additionalDetails, expires_at, rent_start_date, rent_end_date, status,
-// doctor: { all_user: { email, fullname, address } } } }] }
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: GET /v1/offerRequest/supplier/show/order/{id}
+// Returns details of a specific order for the supplier.
 export const getSupplierOrderById = async (orderId) => {
-  const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show/order/${orderId}`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/offerRequest/supplier/show/order/${orderId}`, {
+    headers: authHeaders('supplier'),
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// SHOW OPEN OFFER REQUESTS  (supplier's sent offers)
-// GET /v1/offerRequest/supplier/show
-// ⚠️ UNCONFIRMED: inferred from "showRequest" sidebar entry, no verified
-// example. Response shape assumed: { success, message, data: [{ id,
-// request_id, supplier_id, price, delivery_days, notes, status }],
-// last_page, per_page, total }
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: GET /v1/offerRequest/supplier/show
+// Supplier's own submitted offers (list form).
 export const getSupplierOffers = async (page = 1, perPage = 15) => {
-  const res = await axios.get(`${BASE_URL}/v1/offerRequest/supplier/show`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/offerRequest/supplier/show`, {
+    headers: authHeaders('supplier'),
     params: { page, per_page: perPage },
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// SUPPLIER: Assign an order
-// POST /v1/offerRequest/assignOrder/{id}
-// ⚠️ UNCONFIRMED: inferred from "assignOrder" sidebar entry only. Path,
-// param name, and body are a guess. No page currently calls this — wire it
-// up once the real endpoint shape is confirmed.
-// ─────────────────────────────────────────────
-export const assignOrder = async (offerRequestId) => {
-  const res = await axios.post(
-    `${BASE_URL}/v1/offerRequest/assignOrder/${offerRequestId}`,
-    {},
-    { headers: authHeaders() }
-  );
-  return res.data;
-};
-
-// ─────────────────────────────────────────────
-// DOCTOR: Show own custom requests
-// GET /v1/customRequest/doctor/show?page=1&per_page=15&status=open
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: GET /v1/customRequest/doctor/show
+// Doctor's custom requests (can filter by status).
 export const getDoctorCustomRequests = async (page = 1, perPage = 15, status = '') => {
   const params = { page, per_page: perPage };
   if (status) params.status = status;
-  const res = await axios.get(`${BASE_URL}/v1/customRequest/doctor/show`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/customRequest/doctor/show`, {
+    headers: authHeaders('doctor'),
     params,
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// DOCTOR: Show offers for a specific custom request
-// GET /v1/offerRequest/doctor/show/{customRequestId}
-// Response: { success, message, data: [{ id, request_id, supplier_id, price, delivery_days,
-//   notes, status, supplier: { id, company_name, company_image_url } }] }
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: GET /v1/offerRequest/doctor/show/{customRequestId}
+// Doctor's view of all offers received for a specific custom request.
 export const getDoctorOffersForRequest = async (customRequestId) => {
-  const res = await axios.get(`${BASE_URL}/v1/offerRequest/doctor/show/${customRequestId}`, {
-    headers: authHeaders(),
+  const response = await axios.get(`${BASE_URL}/offerRequest/doctor/show/${customRequestId}`, {
+    headers: authHeaders('doctor'),
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// DOCTOR: Accept or reject an offer
-// POST /v1/offerRequest/doctor/response/{offerRequestId}
+// ✅ CONFIRMED via Postman docs: POST /v1/offerRequest/doctor/response/{offerRequestId}
 // Body: { response: "accepted" | "rejected" }
-// ─────────────────────────────────────────────
-export const respondToOffer = async (offerRequestId, response) => {
-  const res = await axios.post(
-    `${BASE_URL}/v1/offerRequest/doctor/response/${offerRequestId}`,
-    { response },
-    { headers: authHeaders() }
+export const respondToOffer = async (offerRequestId, responseValue) => {
+  const response = await axios.post(
+    `${BASE_URL}/offerRequest/doctor/response/${offerRequestId}`,
+    { response: responseValue },
+    { headers: authHeaders('doctor') }
   );
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// DOCTOR: Delete a custom request
-// DELETE /v1/customRequest/delete/{id}
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: DELETE /v1/customRequest/delete/{id}
+// Doctor only. Deletes a custom request.
 export const deleteCustomRequest = async (id) => {
-  const res = await axios.delete(`${BASE_URL}/v1/customRequest/delete/${id}`, {
-    headers: authHeaders(),
+  const response = await axios.delete(`${BASE_URL}/customRequest/delete/${id}`, {
+    headers: authHeaders('doctor'),
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// DOCTOR: Cancel a custom request
-// POST /v1/customRequest/cancel/{id}
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs: POST /v1/customRequest/cancel/{id}
+// Doctor only. Cancels a custom request.
+// Note: No supplier-facing cancel endpoint exists — used only for doctor-side flow.
 export const cancelCustomRequest = async (id) => {
-  const res = await axios.post(`${BASE_URL}/v1/customRequest/cancel/${id}`, {}, {
-    headers: authHeaders(),
+  const response = await axios.post(`${BASE_URL}/customRequest/cancel/${id}`, {}, {
+    headers: authHeaders('doctor'),
   });
-  return res.data;
+  return response.data;
 };
 
-// ─────────────────────────────────────────────
-// SUPPLIER: Update custom-request order status
-// POST /v1/offerRequest/supplier/order/status/{orderId}
-// Body: { status }  — allowed: "in negotiation" | "shipped" | "delivered"
-// ─────────────────────────────────────────────
+// ✅ CONFIRMED via Postman docs ("assignOrder" entry):
+// POST /v1/offerRequest/supplier/order/status/{id}
+// Body: { status }
+// The order id goes in the URL path, not in the body.
 export const updateOfferOrderStatus = async (orderId, status) => {
-  const res = await axios.post(
-    `${BASE_URL}/v1/offerRequest/supplier/order/status/${orderId}`,
+  const response = await axios.post(
+    `${BASE_URL}/offerRequest/supplier/order/status/${orderId}`,
     { status },
-    { headers: authHeaders() }
+    { headers: authHeaders('supplier') }
   );
-  return res.data;
+  return response.data;
 };

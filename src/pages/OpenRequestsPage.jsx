@@ -5,15 +5,55 @@ import { useNavigate } from 'react-router-dom';
 import { getOpenRequests } from '../apis/requests';
 
 // API returns type: "rental" | "tools" | "paid"
+// Each type has its own tag style, price label/suffix, and details-box label
+// to match the target design (rental = monthly rate, tools = per-unit budget
+// with "procurement requirements" copy, paid = flat budget).
 const TYPE_CONFIG = {
-  rental:     { label: 'RENTAL SUITE', className: 'tag-rental' },
-  tools:      { label: 'TOOLS',         className: 'tag-tools'  },
-  paid:       { label: 'PAID DEVICES',  className: 'tag-paid'   },
+  rental: {
+    label: 'RENTAL SUITE',
+    className: 'tag-rental',
+    priceLabel: 'ESTIMATED MONTHLY',
+    priceSuffix: '/mo',
+    detailsLabel: 'ADDITIONAL DETAILS',
+  },
+  tools: {
+    label: 'TOOLS',
+    className: 'tag-tools',
+    priceLabel: 'EXPECTED BUDGET',
+    priceSuffix: '/ unit',
+    detailsLabel: 'PROCUREMENT REQUIREMENTS',
+  },
+  paid: {
+    label: 'PAID DEVICES',
+    className: 'tag-paid',
+    priceLabel: 'EXPECTED BUDGET',
+    priceSuffix: '',
+    detailsLabel: 'ADDITIONAL DETAILS',
+  },
 };
 
 const getTypeConf = (type = '') => TYPE_CONFIG[type.toLowerCase()] ?? TYPE_CONFIG.paid;
 
 const getInitials = (id) => `D${id}`; // doctor_id used as fallback since API doesn't return name here
+
+// Formats the urgency label the way the design does:
+// "Expires in 48 Hours" when close to expiry, otherwise "Expires: Mon D, YYYY"
+const formatExpiry = (expiresAt) => {
+  if (!expiresAt) return { text: 'No expiry set', isUrgent: false };
+
+  const expiry = new Date(expiresAt);
+  const now = new Date();
+  const diffMs = expiry - now;
+  const isUrgent = diffMs < 48 * 60 * 60 * 1000; // less than 48h
+
+  if (isUrgent && diffMs > 0) {
+    const hoursLeft = Math.max(1, Math.round(diffMs / (60 * 60 * 1000)));
+    return { text: `Expires in ${hoursLeft} Hours`, isUrgent: true };
+  }
+
+  const dateStr = expiry.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return { text: `Expires: ${dateStr}`, isUrgent: diffMs < 0 ? false : isUrgent };
+};
 
 export default function OpenRequestsPage() {
   const navigate = useNavigate();
@@ -71,13 +111,7 @@ export default function OpenRequestsPage() {
           <div className="or-empty">No open requests available.</div>
         ) : requests.map((req) => {
           const typeConf = getTypeConf(req.type);
-          // expires_at from API: "2026-03-29T00:00:00.000000Z"
-          const expiryDate = req.expires_at
-            ? new Date(req.expires_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-            : null;
-          const now = new Date();
-          const expiryMs = req.expires_at ? new Date(req.expires_at) - now : Infinity;
-          const isUrgent = expiryMs < 48 * 60 * 60 * 1000; // less than 48h
+          const { text: expiryText, isUrgent } = formatExpiry(req.expires_at);
           // item[] from API: ["produc1", "produc2", "produc3"]
           const items = Array.isArray(req.item) ? req.item : [];
 
@@ -91,14 +125,14 @@ export default function OpenRequestsPage() {
                       ? <i className="bi bi-clock-fill" style={{ marginRight: 5, fontSize: 12 }} />
                       : <i className="bi bi-calendar3"  style={{ marginRight: 5, fontSize: 12 }} />
                     }
-                    {expiryDate ? `Expires: ${expiryDate}` : 'No expiry set'}
+                    {expiryText}
                   </span>
                 </div>
                 <div className="or-price-block">
-                  <span className="or-price-label">EXPECTED BUDGET</span>
+                  <span className="or-price-label">{typeConf.priceLabel}</span>
                   <span className="or-price">
                     {req.budget
-                      ? `$${Number(req.budget).toLocaleString()}`
+                      ? <>${Number(req.budget).toLocaleString()} <span className="or-price-suffix">{typeConf.priceSuffix}</span></>
                       : 'Open Budget'
                     }
                   </span>
@@ -109,14 +143,6 @@ export default function OpenRequestsPage() {
               <h3 className="or-card-title">
                 {items.length > 0 ? items[0] : `Request #${req.id}`}
               </h3>
-
-              {items.length > 1 && (
-                <div className="or-subtags">
-                  {items.slice(1).map((t, i) => (
-                    <span key={i} className="or-subtag">{t}</span>
-                  ))}
-                </div>
-              )}
 
               {/* Rental dates */}
               {req.rent_start_date && (
@@ -138,10 +164,18 @@ export default function OpenRequestsPage() {
                 </div>
               )}
 
-              {/* Additional details */}
+              {items.length > 1 && (
+                <div className="or-subtags">
+                  {items.slice(1).map((t, i) => (
+                    <span key={i} className="or-subtag">{t}</span>
+                  ))}
+                </div>
+              )}
+
+              {/* Additional details / procurement requirements */}
               {req.additionalDetails && (
                 <div className="or-details-box">
-                  <span className="or-details-label">ADDITIONAL DETAILS</span>
+                  <span className="or-details-label">{typeConf.detailsLabel}</span>
                   <p className="or-details-text">{req.additionalDetails}</p>
                 </div>
               )}

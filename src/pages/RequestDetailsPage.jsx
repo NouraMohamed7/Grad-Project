@@ -1,96 +1,100 @@
 // src/pages/RequestDetailsPage.jsx
-import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import React from "react";
+import { useNavigate, useLocation, useParams } from "react-router-dom";
 
-import { getSupplierOrderById } from '../apis/requests';
-
-const STATUS_CLASS = {
-  pending:          'ostatus-negotiation',
-  accepted:         'ostatus-delivered',
-  rejected:         'ostatus-cancelled',
-  'in negotiation': 'ostatus-negotiation',
-  open:             'ostatus-negotiation',
-  cancelled:        'ostatus-cancelled',
-  paid:             'ostatus-delivered',
+const STATUS_LABEL = {
+  pending: "Pending Decision",
+  "in negotiation": "In Negotiation",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+  accepted: "Accepted",
+  rejected: "Rejected",
+  open: "Pending Decision",
 };
 
-const fmt = (dateStr) =>
-  dateStr
-    ? new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—';
+const fmtDate = (value) =>
+  value
+    ? new Date(value).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
-const fmtMoney = (val) =>
-  val != null && val !== ''
-    ? `$${Number(val).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
-    : 'Open Budget';
+const fmtMoney = (value) =>
+  value || value === 0
+    ? `$${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
+    : null;
+
+const getInitials = (name) => {
+  if (!name) return "?";
+  const parts = name.trim().split(" ");
+  return parts.length > 1
+    ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+};
 
 export default function RequestDetailsPage() {
-  const navigate  = useNavigate();
-  const { id }    = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { id } = useParams();
 
-  const [order,   setOrder]   = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState(null);
+  // Populated when navigating from CustomRequestOrdersPage / OpenRequestsPage /
+  // CustomRequestOffersPage row click: navigate(path, { state: { order } }) or { state: { request } }
+  const order = location.state?.order ?? null;
+  const request = location.state?.request ?? order?.custom_request ?? null;
 
-  const fetchOrder = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await getSupplierOrderById(id);
-      // API returns: { success, message, data: [ { ...orderFields, custom_request: {...} } ] }
-      const item = Array.isArray(res?.data) ? res.data[0] : res?.data ?? res;
-      if (!item) throw new Error('Order not found.');
-      setOrder(item);
-    } catch (err) {
-      setError(err?.response?.data?.error ?? err?.message ?? 'Failed to load order details.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { if (id) fetchOrder(); }, [id]);
-
-  if (loading) return (
-    <div className="rd-page">
-      <div className="rd-header">
-        <button className="rd-back-btn" onClick={() => navigate(-1)}>
-          <i className="bi bi-arrow-left" />
-        </button>
-        <h2 className="rd-title">Request Details</h2>
+  // ── No data guard ─────────────────────────────────────────────────────
+  // There is no single "get request/order by id" endpoint in the API, so
+  // this page relies entirely on data passed via navigation state. If the
+  // user lands here directly (refresh, deep link), we can't refetch it.
+  if (!order && !request) {
+    return (
+      <div className="rd-page">
+        <div className="rd-header">
+          <button className="rd-back-btn" onClick={() => navigate(-1)}>
+            <i className="bi bi-arrow-left" />
+          </button>
+          <h1 className="rd-title">Request Details</h1>
+        </div>
+        <div className="rd-card" style={{ textAlign: "center", padding: 48 }}>
+          <i
+            className="bi bi-exclamation-triangle-fill"
+            style={{ fontSize: 36, color: "#f59e0b", display: "block", marginBottom: 14 }}
+          />
+          <p style={{ color: "#6b7280", marginBottom: 20 }}>
+            No details available for this request. Please go back and open it
+            from the list.
+          </p>
+          <button className="rd-share-btn" onClick={() => navigate("/requests/orders")}>
+            Back to Orders
+          </button>
+        </div>
       </div>
-      <div className="cr-loading" style={{ margin: '40px auto' }}>Loading order details...</div>
-    </div>
-  );
+    );
+  }
 
-  if (error) return (
-    <div className="rd-page">
-      <div className="rd-header">
-        <button className="rd-back-btn" onClick={() => navigate(-1)}>
-          <i className="bi bi-arrow-left" />
-        </button>
-        <h2 className="rd-title">Request Details</h2>
-      </div>
-      <div className="cr-error" style={{ margin: '40px auto', maxWidth: 500 }}>
-        {error}
-        <button className="cr-new-btn" style={{ marginTop: 12, display: 'block' }} onClick={fetchOrder}>
-          Retry
-        </button>
-      </div>
-    </div>
-  );
+  const items = Array.isArray(request?.item) ? request.item : [];
+  const productNames = items.length > 0 ? items.join(", ") : `Request #${request?.id ?? id ?? "—"}`;
 
-  // order shape: { id, request_id, supplier_id, price, delivery_days, notes, status,
-  //   created_at, updated_at, custom_request: { id, doctor_id, item[], type, budget,
-  //   additionalDetails, expires_at, rent_start_date, rent_end_date, status,
-  //   doctor: { id, user_table_id, all_user: { id, email, fullname, address } } } }
+  const email = order?.custom_request?.doctor?.all_user?.email
+    ?? request?.doctor?.all_user?.email
+    ?? "—";
+  const fullname = order?.custom_request?.doctor?.all_user?.fullname
+    ?? request?.doctor?.all_user?.fullname
+    ?? null;
 
-  const cr           = order?.custom_request ?? {};
-  const doctor       = cr?.doctor?.all_user ?? {};
-  const items        = Array.isArray(cr?.item) ? cr.item : [];
-  const orderStatus  = (order?.status ?? 'pending').toLowerCase();
-  const crStatus     = (cr?.status ?? '').toLowerCase();
-  const fullname     = doctor?.fullname ?? `Doctor #${cr?.doctor_id ?? '—'}`;
-  const initials     = fullname.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'DR';
+  const budget = fmtMoney(order?.price ?? order?.budget ?? request?.budget);
+  const status = (order?.status ?? request?.status ?? "pending").toLowerCase();
+
+  const deliveryDays = order?.delivery_days
+    ? `${order.delivery_days} Business Days`
+    : null;
+  const rentStart = fmtDate(request?.rent_start_date);
+  const rentEnd = fmtDate(request?.rent_end_date);
+
+  const notes = order?.notes ?? request?.additionalDetails ?? null;
 
   return (
     <div className="rd-page">
@@ -98,174 +102,67 @@ export default function RequestDetailsPage() {
         <button className="rd-back-btn" onClick={() => navigate(-1)}>
           <i className="bi bi-arrow-left" />
         </button>
-        <h2 className="rd-title">Order Details</h2>
+        <h1 className="rd-title">Request Details</h1>
         <div className="rd-actions">
-          <span className={`cr-ostatus ${STATUS_CLASS[orderStatus] ?? 'ostatus-negotiation'}`}
-            style={{ fontSize: 13, padding: '4px 14px' }}>
-            Offer: {orderStatus}
-          </span>
+        
+          
         </div>
       </div>
 
       <div className="rd-body">
-        {/* ── Left: Order + Request Information ─────────────────────────── */}
-        <div className="rd-main">
+        <div className="rd-card">
+          <div className="rd-card-head">
+            <h3 className="rd-card-title">Order Information</h3>
+            <span className="rd-status-badge" style={{ padding: '4px 12px' }}>
+              {STATUS_LABEL[status] ?? status}
+            </span>
+          </div>
 
-          {/* Offer Details */}
-          <div className="rd-card">
-            <div className="rd-card-head">
-              <h3 className="rd-card-title">Offer Information</h3>
-              <span className={`cr-ostatus ${STATUS_CLASS[orderStatus] ?? 'ostatus-negotiation'}`}>
-                {orderStatus}
+          <div className="rd-info-grid">
+            <div className="rd-info-group">
+              <span className="rd-label">Product Names</span>
+              <span className="rd-value">{productNames}</span>
+            </div>
+            <div className="rd-info-group">
+              <span className="rd-label">Client Email</span>
+              <span className="rd-value">{email}</span>
+            </div>
+            <div className="rd-info-group">
+              <span className="rd-label">Budget Estimate</span>
+              <span className="rd-value rd-budget">{budget ?? 'Open budget'}</span>
+            </div>
+            <div className="rd-info-group">
+              <span className="rd-label">Requested Delivery</span>
+              <span className="rd-value">
+                {deliveryDays ?? (rentStart ? `${rentStart} → ${rentEnd ?? '—'}` : '—')}
               </span>
             </div>
-            <div className="rd-info-grid">
-              <div className="rd-info-group">
-                <span className="rd-label">OFFER ID</span>
-                <span className="rd-value">#{order?.id ?? '—'}</span>
-              </div>
-              <div className="rd-info-group">
-                <span className="rd-label">REQUEST ID</span>
-                <span className="rd-value">#{order?.request_id ?? cr?.id ?? '—'}</span>
-              </div>
-              <div className="rd-info-group">
-                <span className="rd-label">YOUR PRICE</span>
-                <span className="rd-value rd-budget">{fmtMoney(order?.price)}</span>
-              </div>
-              <div className="rd-info-group">
-                <span className="rd-label">DELIVERY DAYS</span>
-                <span className="rd-value">
-                  <i className="bi bi-truck" style={{ marginRight: 6 }} />
-                  {order?.delivery_days != null ? `${order.delivery_days} days` : '—'}
-                </span>
-              </div>
-              <div className="rd-info-group">
-                <span className="rd-label">SUBMITTED ON</span>
-                <span className="rd-value">{fmt(order?.created_at)}</span>
-              </div>
-              <div className="rd-info-group">
-                <span className="rd-label">LAST UPDATED</span>
-                <span className="rd-value">{fmt(order?.updated_at)}</span>
-              </div>
-            </div>
-
-            {order?.notes && (
-              <div className="rd-notes-section">
-                <span className="rd-label">YOUR OFFER NOTES</span>
-                <div className="rd-notes-box">{order.notes}</div>
-              </div>
-            )}
           </div>
 
-          {/* Custom Request Details */}
-          <div className="rd-card" style={{ marginTop: 16 }}>
-            <div className="rd-card-head">
-              <h3 className="rd-card-title">Request Information</h3>
-              {crStatus && (
-                <span className={`cr-ostatus ${STATUS_CLASS[crStatus] ?? 'ostatus-negotiation'}`}>
-                  {crStatus}
-                </span>
-              )}
+          {notes && (
+            <div className="rd-notes-section">
+              <span className="rd-label">Request Notes</span>
+              <div className="rd-notes-box">{notes}</div>
             </div>
-            <div className="rd-info-grid">
-              {items.length > 0 && (
-                <div className="rd-info-group" style={{ gridColumn: '1 / -1' }}>
-                  <span className="rd-label">ITEMS REQUESTED</span>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                    {items.map((item, i) => (
-                      <span key={i} style={{
-                        background: 'var(--rd-tag-bg, #f0f4ff)',
-                        color: 'var(--rd-tag-color, #3b5bdb)',
-                        borderRadius: 6,
-                        padding: '4px 12px',
-                        fontSize: 13,
-                        fontWeight: 500,
-                      }}>{item}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="rd-info-group">
-                <span className="rd-label">REQUEST TYPE</span>
-                <span className="rd-value" style={{ textTransform: 'capitalize' }}>
-                  {cr?.type ?? '—'}
-                </span>
-              </div>
-
-              <div className="rd-info-group">
-                <span className="rd-label">DOCTOR'S BUDGET</span>
-                <span className="rd-value rd-budget">{fmtMoney(cr?.budget)}</span>
-              </div>
-
-              {cr?.expires_at && (
-                <div className="rd-info-group">
-                  <span className="rd-label">EXPIRES AT</span>
-                  <span className="rd-value">
-                    <i className="bi bi-calendar-x" style={{ marginRight: 6 }} />
-                    {fmt(cr.expires_at)}
-                  </span>
-                </div>
-              )}
-
-              {cr?.rent_start_date && (
-                <div className="rd-info-group">
-                  <span className="rd-label">RENTAL PERIOD</span>
-                  <span className="rd-value">
-                    <i className="bi bi-calendar3" style={{ marginRight: 6 }} />
-                    {fmt(cr.rent_start_date)} → {fmt(cr.rent_end_date)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {cr?.additionalDetails && (
-              <div className="rd-notes-section">
-                <span className="rd-label">ADDITIONAL DETAILS</span>
-                <div className="rd-notes-box">{cr.additionalDetails}</div>
-              </div>
-            )}
-          </div>
+          )}
         </div>
 
-        {/* ── Right: Status + Doctor Contact ───────────────────────────── */}
         <div className="rd-sidebar">
           <div className="rd-card rd-status-card">
-            <h3 className="rd-card-title">Offer Status</h3>
+            <h3 className="rd-card-title">Request Status</h3>
             <div className="rd-status-badge">
-              <i className={`bi ${
-                orderStatus === 'accepted' ? 'bi-check-circle-fill' :
-                orderStatus === 'rejected' ? 'bi-x-circle-fill' :
-                'bi-clock-history'
-              }`} style={{ marginRight: 8 }} />
-              {orderStatus.charAt(0).toUpperCase() + orderStatus.slice(1)}
+              <i className="bi bi-clock-history" style={{ marginRight: 8 }} />
+              {STATUS_LABEL[status] ?? status}
             </div>
-            {crStatus && crStatus !== orderStatus && (
-              <div style={{ marginTop: 12 }}>
-                <span className="rd-label">REQUEST STATUS</span>
-                <div className="rd-status-badge" style={{ marginTop: 8, fontSize: 13 }}>
-                  <i className="bi bi-arrow-repeat" style={{ marginRight: 8 }} />
-                  {crStatus.charAt(0).toUpperCase() + crStatus.slice(1)}
-                </div>
-              </div>
-            )}
           </div>
 
           <div className="rd-card rd-contact-card">
-            <h3 className="rd-card-title">Doctor Contact</h3>
+            <h3 className="rd-card-title">Client Contact</h3>
             <div className="rd-contact">
-              <div className="rd-avatar">{initials}</div>
+              <div className="rd-avatar">{getInitials(fullname ?? email)}</div>
               <div>
-                <div className="rd-contact-name">{fullname}</div>
-                {doctor?.email && (
-                  <div className="rd-contact-email">{doctor.email}</div>
-                )}
-                {doctor?.address && (
-                  <div className="rd-contact-email" style={{ marginTop: 4 }}>
-                    <i className="bi bi-geo-alt" style={{ marginRight: 4 }} />
-                    {doctor.address}
-                  </div>
-                )}
+                <div className="rd-contact-name">{fullname ?? 'Doctor'}</div>
+                <div className="rd-contact-email">{email}</div>
               </div>
             </div>
           </div>

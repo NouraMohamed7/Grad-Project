@@ -146,9 +146,7 @@ export default function ChatsPage() {
                 onChange={e => { setSearch(e.target.value); setPage(1); }}
               />
             </div>
-            <button className="ch-new-btn" onClick={() => navigate('/chat/new')}>
-              <i className="bi bi-plus" /> New Offer
-            </button>
+          
           </div>
         </div>
 
