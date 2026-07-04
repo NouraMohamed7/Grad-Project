@@ -73,7 +73,7 @@ export default function App() {
             <Route path="/products/rejection/:id" element={<ProductRejectionPage />} />
 
             <Route path="/orders" element={<OrdersPage />} />
-            <Route path="/orders/:orderId" element={<OrderDetailPage />} />
+            <Route path="/orders/:id" element={<OrderDetailPage />} />
 
             <Route path="/promos" element={<PromosPage />} />
             <Route path="/settings" element={<SettingsPage />} />

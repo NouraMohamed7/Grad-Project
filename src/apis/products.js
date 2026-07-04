@@ -55,7 +55,7 @@ export const getAllProducts = async ({
     params.filter_value = filter_value;
   }
 
-  const response = await axios.get(`${BASE_URL}/v1/product/doctor/show`, {
+  const response = await axios.get(`${BASE_URL}/v1/product/show`, {
     headers: getAuthHeaders("supplier_token"),
     params,
   });
@@ -64,11 +64,13 @@ export const getAllProducts = async ({
 
 export const getProductById = async (productId) => {
   const response = await axios.get(
-    `${BASE_URL}/v1/product/doctor/show/${productId}`,
+    `${BASE_URL}/v1/product/show/${productId}`,
     { headers: getAuthHeaders("supplier_token") }
   );
   return normalizePayload(response);
 };
+
+
 
 export const searchProducts = async ({
   search = "",

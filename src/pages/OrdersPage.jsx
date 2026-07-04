@@ -195,11 +195,11 @@ export default function OrdersPage() {
                 const typeLabel = getOrderTypeLabel(o.order_type);
                 const doctorEmail = getDoctorEmail(o.doctor);
                 return (
-                  <tr
-                    key={o.id}
-                    className="ord-row"
-                    onClick={() => navigate(`/orders/${o.id}`)}
-                  >
+                 <tr
+  key={o.id}
+  className="ord-row"
+  onClick={() => navigate(`/orders/${o.id}`, { state: { doctorEmail: getDoctorEmail(o.doctor) } })}
+>
                     <td className="ord-id">#ORD-{o.id}</td>
                     <td>
                       {/* class matches API value: 'sale' or 'rent' */}
