@@ -57,16 +57,14 @@ export const getConversations = async () => {
  *    لو الـ API مختلف قولي أعدله
  */
 export const getMessages = async (conversationId) => {
-  try {
-    const response = await axios.get(
-      `${BASE_URL}/v1/conversations/${conversationId}/messages`,
-      { headers: getHeaders() }
-    );
-    return response.data;
-  } catch (error) {
-    // لو الـ endpoint ده مش موجود، هنرجع error ونحاول نتعامل معاه في الصفحة
-    throw error.response?.data || error;
-  }
+  const response = await axios.get(
+    `${BASE_URL}/v1/conversations/${conversationId}/messages`,
+    {
+      headers: getHeaders(),
+    }
+  );
+
+  return response.data.data;
 };
 
 /**

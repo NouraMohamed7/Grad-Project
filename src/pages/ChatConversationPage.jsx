@@ -1,6 +1,21 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { sendMessage, getMessages, markAsRead } from "../apis/chat";
+
+// كل قد ايه (بالمللي ثانية) نعمل بولينج على الرسايل الجديدة
+const POLL_INTERVAL_MS = 6000;
+
+// الشكل الحقيقي اللي بيرجع من الـ API هو:
+// { success, data: { conversation: {...}, messages: [...] }, last_page, per_page, total }
+// يعني الرسايل تحت data.messages، مش data مباشرة.
+const extractMessagesArray = (res) => {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.data?.messages)) return res.data.messages;
+  if (Array.isArray(res?.messages)) return res.messages;
+  if (Array.isArray(res?.data)) return res.data;
+  if (Array.isArray(res?.data?.data)) return res.data.data;
+  return [];
+};
 
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function ChatConversationPage() {
@@ -16,6 +31,7 @@ export default function ChatConversationPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
+  const currentUserId = Number(localStorage.getItem("user_id"));
   const [convoInfo, setConvoInfo] = useState({
     doctorName: userName || "Doctor",
     doctorInitials: userName
@@ -30,46 +46,52 @@ export default function ChatConversationPage() {
   });
 
   const bottomRef = useRef(null);
+  // بنسيب مرجع (ref) لآخر id شفناه، ده بيساعدنا نمنع الميساجات تتكرر وقت البولينج
+  const messagesRef = useRef([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
 
-  // ─── Fetch messages on mount ──────────────────────────────
+  // ─── Helper: format a raw API message into UI shape ──────
+  const formatMessage = useCallback(
+    (msg) => ({
+      id: msg.id,
+      sender: msg.sender_id === currentUserId ? "me" : "them",
+      text: msg.body || msg.message,
+      time: new Date(msg.created_at).toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      seen: msg.is_read || false,
+      // المنتج (لو الرسالة دي بردكت متبعت) بيجي كحقول جاهزة من الـ API
+      // نفس مستوى "message" مش جوه الـ text، فمش محتاجين JSON.parse خالص
+      productName: msg.product_name || null,
+      productImage: msg.product_image || null,
+      productId: msg.product_id || null,
+    }),
+    [currentUserId],
+  );
+
+  // ─── Fetch messages (initial load) ────────────────────────
   useEffect(() => {
     const fetchMessages = async () => {
       try {
         setLoading(true);
 
-        // لو عندنا conversationId، بنجيب الرسائل من الـ API
         if (conversationId) {
           try {
             const res = await getMessages(conversationId);
-            // بنفترض إن الـ response بيرجع { success: true, data: [...messages] }
-            const apiMessages = res.data || [];
-
-            // بنحول الـ API messages للشكل اللي الـ UI بتستخدمه
-            const formattedMessages = apiMessages.map((msg) => ({
-              id: msg.id,
-              sender: msg.sender_id === parseInt(chatId) ? "them" : "me",
-              text: msg.body || msg.message,
-              time: new Date(msg.created_at).toLocaleTimeString("en-US", {
-                hour: "2-digit",
-                minute: "2-digit",
-              }),
-              seen: msg.is_read || false,
-            }));
-
-            setMessages(formattedMessages);
-
-            // بنعلم المحادثة مقروءة
+            const apiMessages = extractMessagesArray(res);
+            setMessages(apiMessages.map(formatMessage));
             await markAsRead(conversationId);
           } catch (msgErr) {
             console.log(
               "No existing conversation or messages endpoint not available:",
               msgErr,
             );
-            // لو مفيش conversation أو الـ endpoint مش شغال، نبدأ بمحادثة فاضية
             setMessages([]);
           }
         } else {
-          // مفيش conversation قبل كده، بنبدأ فاضي
           setMessages([]);
         }
 
@@ -83,7 +105,35 @@ export default function ChatConversationPage() {
     };
 
     fetchMessages();
-  }, [chatId, conversationId]);
+  }, [chatId, conversationId, formatMessage]);
+
+  // ─── Real-time (polling) — setInterval ────────────────────
+  // بنسأل السيرفر كل فترة (POLL_INTERVAL_MS) عشان أي رسالة جديدة
+  // توصل من غير ما تعمل Reload للصفحة.
+  useEffect(() => {
+    if (!conversationId) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await getMessages(conversationId);
+        const apiMessages = extractMessagesArray(res);
+
+        const existingIds = new Set(messagesRef.current.map((m) => m.id));
+        const newOnes = apiMessages
+          .map(formatMessage)
+          .filter((m) => !existingIds.has(m.id));
+
+        if (newOnes.length > 0) {
+          setMessages((prev) => [...prev, ...newOnes]);
+          await markAsRead(conversationId);
+        }
+      } catch (err) {
+        console.log("Polling error:", err);
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [conversationId, formatMessage]);
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
@@ -101,7 +151,6 @@ export default function ChatConversationPage() {
       minute: "2-digit",
     });
 
-    // بنضيف الرسالة في الـ UI على طول (Optimistic UI)
     const tempId = Date.now();
     const newMessage = {
       id: tempId,
@@ -109,7 +158,7 @@ export default function ChatConversationPage() {
       text,
       time,
       seen: false,
-      pending: true, // ← علامة إنها لسه بتتبعت
+      pending: true,
     };
 
     setMessages((prev) => [...prev, newMessage]);
@@ -117,10 +166,8 @@ export default function ChatConversationPage() {
     setSending(true);
 
     try {
-      // بنبعت للـ API
       const res = await sendMessage(parseInt(chatId), text);
 
-      // لو نجحت، بنحدث الرسالة من pending لـ sent
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === tempId
@@ -128,20 +175,17 @@ export default function ChatConversationPage() {
                 ...msg,
                 pending: false,
                 seen: true,
-                id: res.data?.message?.id || tempId, // بنستخدم الـ ID الحقيقي من API
+                id: res.data?.message?.id || tempId,
               }
             : msg,
         ),
       );
 
-      // بنحدث الـ conversationId لو هي أول رسالة
       if (!conversationId && res.data?.conversation?.id) {
-        // هنا ممكن تستخدم navigate مع state جديد
-        // بس لحد ما نعرف الـ behavior الصح، هنسيبها كده
+        // ممكن نعمل navigate هنا بـ state جديد فيه الـ conversationId لو أول رسالة
       }
     } catch (err) {
       console.error("Error sending message:", err);
-      // لو فشلت، بنعلم الرسالة إنها failed
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === tempId ? { ...msg, pending: false, failed: true } : msg,
@@ -160,25 +204,58 @@ export default function ChatConversationPage() {
     }
   };
 
-  // ─── Retry failed message ─────────────────────────────────
   const retryMessage = async (msg) => {
     if (!msg.failed) return;
-
-    // بنشيل الرسالة الفاشلة وبنبعتها تاني
     setMessages((prev) => prev.filter((m) => m.id !== msg.id));
     setInput(msg.text);
   };
 
-  // Group messages by date label (simplified — all "TODAY" for now)
   const dateLabel = "TODAY";
 
-  // Avatar جوه الـ topbar وجوه رسايل "them" — صورة حقيقية لو موجودة، وإلا initials
   const renderAvatar = (className) =>
     convoInfo.profileImage ? (
       <img src={convoInfo.profileImage} alt={convoInfo.doctorName} className={className} />
     ) : (
       <div className={className}>{convoInfo.doctorInitials}</div>
     );
+
+  // ─── Product message card ──────────────────────────────────
+  // المنتج بييجي كحقول جاهزة من الـ API (product_name / product_image / product_id)
+  // مش JSON متحطوط جوه نص الرسالة، فبنعرض الكارت لو أي واحد منهم موجود.
+  const renderMessageBody = (msg) => {
+    if (msg.productName || msg.productImage) {
+      return (
+        <div
+          className="cc-product-card"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "10px",
+            cursor: "pointer",
+            padding: "6px",
+          }}
+          onClick={() => {
+            if (msg.productId) navigate(`/products/${msg.productId}`);
+          }}
+        >
+          {msg.productImage && (
+            <img
+              src={msg.productImage}
+              alt={msg.productName || "product"}
+              style={{ width: 44, height: 44, borderRadius: 6, objectFit: "cover" }}
+            />
+          )}
+          <div>
+            <div style={{ fontWeight: 600 }}>{msg.productName}</div>
+            {msg.text && (
+              <div style={{ fontSize: 12, opacity: 0.8 }}>{msg.text}</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    return msg.text;
+  };
 
   // ─── Loading State ────────────────────────────────────────
   if (loading) {
@@ -254,7 +331,7 @@ export default function ChatConversationPage() {
               <div
                 className={`cc-bubble ${msg.sender === "me" ? "cc-bubble-me" : "cc-bubble-them"}`}
               >
-                {msg.text}
+                {renderMessageBody(msg)}
                 {msg.pending && (
                   <span className="ms-2">
                     <div
