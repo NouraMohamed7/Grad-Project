@@ -38,17 +38,50 @@ const getOrderDiscount = (order) => {
 
 const getOrderDate = (order) => normalizeDate(order?.created_at ?? order?.createdAt ?? order?.date ?? order?.updated_at ?? order?.updatedAt);
 
-const getCategoryName = (item, fallback = 'Uncategorized') => {
+// يرجّع category_id من أي شكل ييجي بيه (مباشر أو جوه product متداخل)
+const getCategoryId = (item) => {
+  if (!item) return null;
+  const id =
+    item.category_id ??
+    item.product?.category_id ??
+    item.category?.id ??
+    item.product?.category?.id ??
+    null;
+  return id != null ? String(id) : null;
+};
+
+// يبني map { "1": "اسم الكاتجوري", "2": "...", ... } من رد /v1/category/show
+export const buildCategoryMap = (categoriesPayload) => {
+  const list = asList(categoriesPayload);
+  const map = {};
+  list.forEach((cat) => {
+    const id = cat?.id ?? cat?.category_id;
+    if (id == null) return;
+    map[String(id)] = cat.name || cat.category_name || cat.title || `Category ${id}`;
+  });
+  return map;
+};
+
+const getCategoryName = (item, categoriesMap = {}, fallback = 'Uncategorized') => {
   if (!item) return fallback;
-  return (
+
+  // أولاً: لو معانا الـ map، دور بالـ id (ده الأصح دلوقتي)
+  const id = getCategoryId(item);
+  if (id != null && categoriesMap[id]) return categoriesMap[id];
+
+  // fallback: لو حد يوم غيّر الـ backend وبقى بيرجع اسم مباشر
+  const directName =
     item.category?.name ||
     item.category_name ||
-    item.category ||
+    (typeof item.category === 'string' ? item.category : null) ||
     item.product?.category?.name ||
     item.product?.category_name ||
-    item.product?.category ||
-    fallback
-  );
+    (typeof item.product?.category === 'string' ? item.product.category : null);
+
+  if (directName) return directName;
+
+  // لو مفيش map ومفيش اسم، خليها تبين الـ id بدل ما تختفي في "Uncategorized"
+  return id != null ? `Category ${id}` : fallback;
 };
 
 export const getDashboardMetrics = ({ orders = [], products = [], offers = [] } = {}) => {
@@ -183,7 +216,7 @@ export const buildWeeklyOrderSeries = (orders) => {
   return buckets.reverse();
 };
 
-export const buildCategorySeries = ({ orders = [], products = [] } = {}) => {
+export const buildCategorySeries = ({ orders = [], products = [], categoriesMap = {} } = {}) => {
   const buckets = new Map();
   const addBucket = (name, revenue, units = 1) => {
     const existing = buckets.get(name) || { name, revenue: 0, units: 0, color: '#3b82f6' };
@@ -197,24 +230,16 @@ export const buildCategorySeries = ({ orders = [], products = [] } = {}) => {
     const items = Array.isArray(order.items) ? order.items : Array.isArray(order.products) ? order.products : [];
     if (items.length) {
       items.forEach((item) => {
-        const category = getCategoryName(item, 'Uncategorized');
+        const category = getCategoryName(item, categoriesMap, 'Uncategorized');
         const quantity = toNumber(item.quantity ?? item.qty ?? 1);
-        const amount = toNumber(item.price ?? item.amount ?? item.total ?? order.total ?? 0);
-        addBucket(category, amount * quantity, quantity);
+        const amount = toNumber(item.final_price ?? item.unit_price ?? item.price ?? item.amount ?? item.total ?? 0);
+        addBucket(category, amount, quantity);
       });
       return;
     }
 
-    const category = getCategoryName(order, 'Uncategorized');
+    const category = getCategoryName(order, categoriesMap, 'Uncategorized');
     addBucket(category, getOrderRevenue(order), 1);
-  });
-
-  const productList = asList(products);
-  productList.forEach((product) => {
-    const category = getCategoryName(product, 'Uncategorized');
-    const stock = toNumber(product.stock ?? product.available_units ?? 1);
-    const price = toNumber(product.price ?? 0);
-    addBucket(category, price * stock, stock);
   });
 
   const palette = ['#2563eb', '#22c55e', '#a855f7', '#f59e0b', '#ef4444', '#14b8a6'];

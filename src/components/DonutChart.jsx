@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { getSupplierOrders } from '../apis/orders';
-import { getAllProducts } from '../apis/products';
-import { buildCategorySeries } from '../utils/dashboardMetrics';
+import { getAllProducts, getCategories } from '../apis/Products';
+import { buildCategorySeries, buildCategoryMap } from '../utils/dashboardMetrics'
 
 const CustomTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
@@ -27,23 +27,27 @@ const CustomTooltip = ({ active, payload }) => {
 export default function DonutChart() {
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
+  const [categoriesMap, setCategoriesMap] = useState({}); // ← جديد
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       try {
-        const [ordersRes, productsRes] = await Promise.allSettled([
+        const [ordersRes, productsRes, categoriesRes] = await Promise.allSettled([
           getSupplierOrders(),
           getAllProducts({ page: 1, per_page: 100 }),
+          getCategories(1, 100), // ← جديد
         ]);
 
         const nextOrders = Array.isArray(ordersRes.value?.data) ? ordersRes.value.data : [];
         const nextProducts = Array.isArray(productsRes.value?.data) ? productsRes.value.data : [];
+        const nextMap = categoriesRes.status === 'fulfilled' ? buildCategoryMap(categoriesRes.value) : {};
 
         if (active) {
           setOrders(nextOrders);
           setProducts(nextProducts);
+          setCategoriesMap(nextMap);
         }
       } catch (error) {
         console.error('DonutChart load error:', error);
@@ -57,11 +61,13 @@ export default function DonutChart() {
   }, []);
 
   const data = useMemo(() => {
-    const series = buildCategorySeries({ orders, products });
+    const series = buildCategorySeries({ orders, products, categoriesMap }); // ← ضيف categoriesMap هنا
     const total = series.reduce((sum, item) => sum + item.revenue, 0);
     if (!total) return [];
     return series.map((item) => ({ ...item, value: Number(((item.revenue / total) * 100).toFixed(1)) }));
-  }, [orders, products]);
+  }, [orders, products, categoriesMap]);
+
+ 
 
   return (
     <div className="chart-card">
