@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { getSupplierOrders } from '../apis/orders';
-import { getAllProducts, getCategories } from '../apis/Products';
+import { getAllProducts, getCategories } from '../apis/products';
 import { buildCategorySeries, buildCategoryMap } from '../utils/dashboardMetrics'
 
 const CustomTooltip = ({ active, payload }) => {
