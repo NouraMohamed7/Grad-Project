@@ -26,7 +26,7 @@ const STATUS_CLASS = {
 // ✅ CONFIRMED via API error message (July 2026):
 // "Status must not be open and must be one of: in negotiation, shipped, delivered"
 // Only these 3 statuses are accepted by POST /v1/offerRequest/supplier/order/status/{id}
-const AVAILABLE_STATUSES = ["in negotiation", "shipped", "delivered"];
+const AVAILABLE_STATUSES = ["shipped", "delivered"];
 
 const ITEMS_PER_PAGE = 8;
 

@@ -4,47 +4,119 @@ import { toast } from "react-toastify";
 import {
   getSupplierOrderById,
   assignOrderStatus,
+  returnRentalProduct,
   getErrorMessage,
 } from "../apis/orders";
 
+// ── Order status labels/colors (موسّعة عشان تغطي أي status يرجع من الباك) ──
 const STATUS_LABEL = {
   pending: "Pending",
   processing: "Processing",
   confirmed: "Confirmed",
   ready: "Ready",
   delivered: "Delivered",
-  cancelled: "Cancelled",
   paid: "Paid",
+  cancelled: "Cancelled",
+  canceled: "Cancelled",
+  rejected: "Rejected",
+  returned: "Returned",
+  refunded: "Refunded",
+  completed: "Completed",
+  active: "Active",
+  overdue: "Overdue",
 };
 
 const STATUS_DOT = {
-  pending:    "#d97706",
+  pending:    "#9ca3af",
   processing: "#2563eb",
   confirmed:  "#2563eb",
   ready:      "#16a34a",
   delivered:  "#16a34a",
-  cancelled:  "#dc2626",
   paid:       "#16a34a",
+  completed:  "#16a34a",
+  active:     "#16a34a",
+  cancelled:  "#dc2626",
+  canceled:   "#dc2626",
+  rejected:   "#dc2626",
+  overdue:    "#dc2626",
+  returned:   "#d97706",
+  refunded:   "#d97706",
+};
+
+// ── Sub-status (بتاعة كل item) ليها ماب لوحدها عشان مش بالضرورة نفس قيم الـ order status ──
+const SUB_STATUS_LABEL = {
+  pending: "Pending",
+  processing: "Processing",
+  active: "Active",
+  ready: "Ready",
+  delivered: "Delivered",
+  returned: "Returned",
+  overdue: "Overdue",
+  cancelled: "Cancelled",
+  canceled: "Cancelled",
+  rejected: "Rejected",
+  refunded: "Refunded",
+  completed: "Completed",
+};
+
+const SUB_STATUS_DOT = {
+  pending:    "#9ca3af",
+  processing: "#2563eb",
+  active:     "#2563eb",
+  ready:      "#16a34a",
+  delivered:  "#16a34a",
+  completed:  "#16a34a",
+  returned:   "#d97706",
+  overdue:    "#dc2626",
+  cancelled:  "#dc2626",
+  canceled:   "#dc2626",
+  rejected:   "#dc2626",
+  refunded:   "#6b7280",
+};
+
+const DEFAULT_DOT = "#6b7280";
+
+// أي status مش موجود في الماب، بنعمله fallback: نلوّنه رمادي ونعرضه بحروف كابيتال بدل ما نكسر الشكل
+const humanizeFallback = (raw) => {
+  if (!raw && raw !== 0) return "-";
+  const str = String(raw).replace(/[_-]+/g, " ").trim();
+  return str.length ? str.charAt(0).toUpperCase() + str.slice(1) : "-";
 };
 
 // الحالات المسموح بالتحويل ليها فعليًا من الباك (حسب الـ Postman: processing/ready بس)
-const SELECTABLE_STATUSES = ["pending", "processing", "ready"];
+const SELECTABLE_STATUSES = ["processing", "ready"];
 
-const fmtDate = (value) =>
-  value
-    ? new Date(value).toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      })
-    : "-";
+// أنواع الأوردر اللي بتتعامل مع rental (الباك بيرجعها كـ "rental" حسب صفحة الأوردرات)
+const RENTAL_TYPES = ["rental", "rent"];
 
-const fmtMoney = (value) =>
-  value || value === 0
-    ? `EGP ${Number(value).toLocaleString("en-US", { minimumFractionDigits: 2 })}`
-    : "—";
+const fmtDate = (value) => {
+  if (!value) return "-";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "-";
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+};
+
+// بيقبل أي حاجة ممكن الباك يرجعها كرقم (string, number, null, undefined) ويرجّع فورمات فلوس آمن
+const fmtMoney = (value) => {
+  if (value === null || value === undefined || value === "") return "—";
+  const num = Number(value);
+  if (Number.isNaN(num)) return "—";
+  return `EGP ${num.toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+};
+
+// بيدور على أول قيمة موجودة (مش null/undefined/"") من كذا مصدر محتمل لنفس الحقل
+const firstDefined = (...vals) => {
+  for (const v of vals) {
+    if (v !== null && v !== undefined && v !== "") return v;
+  }
+  return undefined;
+};
 
 // ── Styles ──────────────────────────────────────────────────────────
 const S = {
@@ -103,14 +175,28 @@ const S = {
   productCell: { display: "flex", alignItems: "center", gap: 12 },
   productIcon: {
     width: 38, height: 38, borderRadius: 9, background: "#eff6ff",
-    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0,
+    display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0, overflow: "hidden",
   },
+  productImg: { width: "100%", height: "100%", objectFit: "cover" },
   productName: { fontWeight: 700, color: "#111827" },
   subBadge: (color) => ({
     display: "inline-block", padding: "3px 10px", borderRadius: 12,
     fontSize: 11.5, fontWeight: 700, textTransform: "capitalize",
     background: `${color}18`, color,
   }),
+  returnBtn: {
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px",
+    borderRadius: 20, border: "1.5px solid #93c5fd", background: "#eff6ff", color: "#2563eb",
+    fontSize: 11.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+  },
+  returnBtnDisabled: {
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px",
+    borderRadius: 20, border: "1.5px solid #e5e7eb", background: "#f9fafb", color: "#c1c5cc",
+    fontSize: 11.5, fontWeight: 700, cursor: "not-allowed", whiteSpace: "nowrap",
+  },
+  rentalEndWrap: { display: "flex", flexDirection: "column", gap: 2 },
+  rentalEndLabel: { fontSize: 10.5, color: "#9ca3af", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3 },
+  rentalEndValue: { fontWeight: 700 },
   bottomRow: { display: "flex", justifyContent: "flex-end", gap: 20, flexWrap: "wrap" },
   summaryCard: {
     background: "#fff", borderRadius: 14, border: "1px solid #eef0f3",
@@ -141,6 +227,12 @@ const S = {
   }),
   centerBox: { textAlign: "center", padding: 48, background: "#fff", borderRadius: 14, border: "1px solid #eef0f3" },
   emailNote: { fontSize: 11, color: "#9ca3af", marginTop: 4, fontStyle: "italic" },
+  doctorNameRow: { display: "flex", alignItems: "center", gap: 8 },
+  doctorAvatar: { width: 28, height: 28, borderRadius: "50%", objectFit: "cover", flexShrink: 0 },
+  verifiedBadge: {
+    display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 8px", borderRadius: 10,
+    fontSize: 10.5, fontWeight: 700, background: "#ecfdf5", color: "#16a34a",
+  },
 };
 
 export default function OrderDetailPage() {
@@ -152,6 +244,7 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
+  const [returningItemId, setReturningItemId] = useState(null);
 
   const fetchOrder = (silent = false) => {
     if (!id) {
@@ -163,8 +256,10 @@ export default function OrderDetailPage() {
     setError("");
     getSupplierOrderById(id)
       .then((res) => {
-        const fresh = Array.isArray(res?.data) ? res.data[0] : res?.data;
-        if (fresh) setOrder(fresh);
+        // بعض الـ endpoints بترجع array وبعضها بيرجع object لوحده، وده بيتغطى هنا
+        const raw = res?.data;
+        const fresh = Array.isArray(raw) ? raw[0] : raw;
+        if (fresh && typeof fresh === "object") setOrder(fresh);
         else setError("Order not found.");
       })
       .catch((err) => setError(getErrorMessage(err)))
@@ -177,7 +272,7 @@ export default function OrderDetailPage() {
   }, [id]);
 
   const handleStatusChange = async (newStatus) => {
-    if (newStatus === status) return;
+    if (!newStatus || newStatus === status) return;
     setUpdating(true);
     try {
       await assignOrderStatus(id, newStatus);
@@ -187,6 +282,24 @@ export default function OrderDetailPage() {
       toast.error(getErrorMessage(err));
     } finally {
       setUpdating(false);
+    }
+  };
+
+  // بيرجع المنتج بعد ما يتسلم (الباك بيرفض الريتيرن لو الأوردر لسه مش delivered)
+  const handleReturnProduct = async (productId) => {
+    if (productId === null || productId === undefined) {
+      toast.error("Missing product id for this item.");
+      return;
+    }
+    setReturningItemId(productId);
+    try {
+      await returnRentalProduct(id, productId);
+      toast.success("Product returned successfully");
+      fetchOrder(true);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    } finally {
+      setReturningItemId(null);
     }
   };
 
@@ -219,32 +332,75 @@ export default function OrderDetailPage() {
     );
   }
 
-  const status = (order.status || "pending").toLowerCase();
-  const statusColor = STATUS_DOT[status] || "#6b7280";
+  // status ممكن ييجي null/undefined أو بحروف كابيتال أو فيه مسافات زيادة
+  const status = String(order.status ?? "pending").toLowerCase().trim();
+  const statusColor = STATUS_DOT[status] || DEFAULT_DOT;
+  const statusLabel = STATUS_LABEL[status] ?? humanizeFallback(status);
 
-  const items = order.items || [];
+  // items ممكن تيجي null أو مش array أصلاً
+  const items = Array.isArray(order.items) ? order.items : [];
 
-  // ── الإيميل: من الـ API الأصلي، ولو مش موجود بناخده من navigation state
-  // اللي جاي من صفحة الأوردرات (لأن single-order endpoint حاليًا مش بيرجع
-  // doctor.all_user من الباك) ──
-  const email =
-    order.doctor?.all_user?.email ??
-    order.doctor?.email ??
-    location.state?.doctorEmail ??
-    null;
+  // نوع الأوردر ممكن يكون null أو casing مختلف
+  const orderTypeRaw = order.order_type ?? order.type ?? null;
+  const isRentalOrder = RENTAL_TYPES.includes(String(orderTypeRaw ?? "").toLowerCase().trim());
+
+  // زرار الريترن بيتفعل بس لو الأوردر delivered (حسب رسالة الباك:
+  // "Rental products can only be returned after the order is delivered.")
+  const canReturn = status === "delivered";
+
+  // ── الإيميل والاسم: من الـ API الأصلي، ولو مش موجود بناخده من navigation state
+  // اللي جاي من صفحة الأوردرات (لأن single-order endpoint حاليًا ممكن ميرجعش
+  // doctor.all_user كامل من الباك) ──
+  const email = firstDefined(
+    order.doctor?.all_user?.email,
+    order.doctor?.email,
+    order.email,
+    location.state?.doctorEmail
+  ) ?? null;
 
   const emailFromFallback =
-    !order.doctor?.all_user?.email &&
-    !order.doctor?.email &&
+    !firstDefined(order.doctor?.all_user?.email, order.doctor?.email, order.email) &&
     !!location.state?.doctorEmail;
 
-  const phone = order.doctor?.phone ?? "—";
+  // ملاحظة: الـ doctor object الراجع فعليًا من endpoint الأوردرات (single و list)
+  // مفيهوش email ولا name خالص — بس فيه phone / profile_image_url / is_verified.
+  // فالاسم والإيميل بيعتمدوا بالكامل على navigation state الجاي من صفحة الأوردرات.
+  const doctorName = firstDefined(
+    order.doctor?.all_user?.name,
+    order.doctor?.name,
+    location.state?.doctorName
+  );
 
+  const phone = firstDefined(order.doctor?.phone, order.doctor?.all_user?.phone, order.phone) ?? "—";
+
+  const doctorAvatar = order.doctor?.profile_image_url ?? null;
+  const doctorIsVerified = order.doctor?.is_verified === true;
+
+  const orderIssueRaw = order.order_issue;
   const orderHasIssue =
-    order.order_issue && order.order_issue !== "None" && order.order_issue !== "none";
+    orderIssueRaw !== null &&
+    orderIssueRaw !== undefined &&
+    String(orderIssueRaw).trim() !== "" &&
+    String(orderIssueRaw).toLowerCase() !== "none";
+
+  const orderId = firstDefined(order.id, order.order_id) ?? id ?? "—";
 
   // الخيارات المعروضة في السلكت: الحالة الحالية (حتى لو مش من ضمن SELECTABLE_STATUSES) + الحالات المسموحة
   const selectOptions = Array.from(new Set([status, ...SELECTABLE_STATUSES]));
+
+  // بنود السمّري: بنعرض القيم المعروفة زي القديم، وأي حقل مالي إضافي يرجع من الباك
+  // (discount / tax / shipping / delivery fee...) بنعرضه لو موجود وبس، من غير ما نغيّر الشكل الأساسي
+  const optionalMoneyFields = [
+    { key: "discount", label: "Discount" },
+    { key: "tax", label: "Tax" },
+    { key: "shipping_fee", label: "Shipping Fee" },
+    { key: "delivery_fee", label: "Delivery Fee" },
+  ].filter(
+    (f) => order[f.key] !== null && order[f.key] !== undefined && order[f.key] !== ""
+  );
+
+  const total = firstDefined(order.total, order.total_price, order.grand_total);
+  const subtotal = firstDefined(order.subtotal, order.sub_total);
 
   return (
     <div style={S.page}>
@@ -256,51 +412,42 @@ export default function OrderDetailPage() {
       <div style={S.headerCard}>
         <div style={S.headerTop}>
           <div>
-            <h1 style={S.orderTitle}>Order #ORD-{order.id}</h1>
+            <h1 style={S.orderTitle}>Order #ORD-{orderId}</h1>
             <p style={S.orderSubtitle}>Details and item breakdown for this order</p>
           </div>
           <div style={S.headerActions}>
             <button style={S.primaryBtn} onClick={() => window.print()}>
               🖨️ Print Invoice
             </button>
-            <button
-              style={email ? S.secondaryBtn : S.secondaryBtnDisabled}
-              disabled={!email}
-              title={email ? `Email ${email}` : "Doctor email not available"}
-              onClick={() => {
-                if (email) window.location.href = `mailto:${email}`;
-              }}
-            >
-              ✉️ Email Doctor
-            </button>
+         
           </div>
         </div>
 
         <div style={S.infoGrid}>
           <div style={S.infoCol}>
             <span style={S.infoLabel}>Order Number</span>
-            <span style={S.infoValue}>#ORD-{order.id}</span>
+            <span style={S.infoValue}>#ORD-{orderId}</span>
           </div>
           <div style={S.infoCol}>
             <span style={S.infoLabel}>Order Type</span>
-            <span style={S.typeBadge}>{order.order_type}</span>
+            <span style={S.typeBadge}>{orderTypeRaw ?? "—"}</span>
           </div>
           <div style={S.infoCol}>
             <span style={S.infoLabel}>Order Status</span>
             <span style={S.statusRow}>
               <span style={S.dot(statusColor)} />
-              {STATUS_LABEL[status] ?? status}
+              {statusLabel}
             </span>
           </div>
           <div style={S.infoCol}>
             <span style={S.infoLabel}>Order Issue</span>
             <span style={{ ...S.infoValue, fontStyle: orderHasIssue ? "normal" : "italic", color: orderHasIssue ? "#dc2626" : "#9ca3af", fontWeight: orderHasIssue ? 700 : 500 }}>
-              {orderHasIssue ? order.order_issue : "None reported"}
+              {orderHasIssue ? String(orderIssueRaw) : "No Issue"}
             </span>
           </div>
           <div style={S.infoColLast}>
             <span style={S.infoLabel}>Created At</span>
-            <span style={S.infoValue}>{fmtDate(order.created_at)}</span>
+            <span style={S.infoValue}>{fmtDate(order.created_at ?? order.createdAt)}</span>
           </div>
         </div>
       </div>
@@ -308,6 +455,21 @@ export default function OrderDetailPage() {
       {/* Doctor info */}
       <div style={S.headerCard}>
         <div style={S.infoGrid}>
+          <div style={S.infoCol}>
+            <span style={S.infoLabel}>Doctor Name</span>
+            <span style={S.doctorNameRow}>
+              {doctorAvatar && (
+                <img
+                  src={doctorAvatar}
+                  alt=""
+                  style={S.doctorAvatar}
+                  onError={(e) => { e.currentTarget.style.display = "none"; }}
+                />
+              )}
+              <span style={S.infoValue}>{doctorName ?? "—"}</span>
+              {doctorIsVerified && <span style={S.verifiedBadge}>✓ Verified</span>}
+            </span>
+          </div>
           <div style={S.infoCol}>
             <span style={S.infoLabel}>Doctor Email</span>
             <span style={S.infoValue}>{email ?? "—"}</span>
@@ -343,35 +505,94 @@ export default function OrderDetailPage() {
                 <th style={S.th}>Sub Status</th>
                 <th style={S.th}>Rental Period</th>
                 <th style={S.th}>Final Price</th>
+                {isRentalOrder && <th style={S.th}>Action</th>}
               </tr>
             </thead>
             <tbody>
-              {items.map((it) => (
-                <tr key={it.id}>
-                  <td style={S.td}>
-                    <div style={S.productCell}>
-                      <div style={S.productIcon}>📦</div>
-                      <span style={S.productName}>{it.product?.name ?? `#${it.product_id}`}</span>
-                    </div>
-                  </td>
-                  <td style={S.td}>{fmtMoney(it.unit_price)}</td>
-                  <td style={S.td}>{it.quantity}</td>
-                  <td style={S.td}>
-                    <span style={S.subBadge(STATUS_DOT[it.sub_status] || "#6b7280")}>
-                      {it.sub_status ?? "-"}
-                    </span>
-                  </td>
-                  <td style={S.td}>
-                    {it.rental_start
-                      ? `${fmtDate(it.rental_start)} → ${fmtDate(it.rental_end)}`
-                      : "—"}
-                  </td>
-                  <td style={{ ...S.td, fontWeight: 700 }}>{fmtMoney(it.final_price)}</td>
-                </tr>
-              ))}
+              {items.map((it, idx) => {
+                // فترة الإيجار: بندعم أسماء حقول بديلة، ولو مفيش تاريخ بداية أصلاً منعرضش حاجة
+                const rentalStart = firstDefined(it.rental_start, it.start_date);
+                const rentalEnd = firstDefined(it.rental_end, it.end_date);
+                const hasRentalPeriod = !!rentalStart;
+
+                const productId = firstDefined(it.product_id, it.product?.id, it.id);
+                const isReturning = returningItemId === productId;
+
+                const productName = firstDefined(it.product?.name, it.product_name, it.name) ?? `#${productId ?? "—"}`;
+                const productImg = firstDefined(it.product?.image, it.product?.image_url, it.product?.thumbnail);
+
+                const subStatusRaw = it.sub_status ?? null;
+                const subStatusKey = subStatusRaw ? String(subStatusRaw).toLowerCase().trim() : null;
+                const subStatusColor = subStatusKey ? (SUB_STATUS_DOT[subStatusKey] || DEFAULT_DOT) : DEFAULT_DOT;
+                const subStatusLabel = subStatusKey ? (SUB_STATUS_LABEL[subStatusKey] ?? humanizeFallback(subStatusKey)) : "-";
+
+                const unitPrice = firstDefined(it.unit_price, it.price);
+                const finalPrice = firstDefined(it.final_price, it.total_price, it.subtotal);
+                const quantity = firstDefined(it.quantity, it.qty) ?? "—";
+
+                return (
+                  <tr key={firstDefined(it.id, `${productId}-${idx}`)}>
+                    <td style={S.td}>
+                      <div style={S.productCell}>
+                        <div style={S.productIcon}>
+                          {productImg ? (
+                            <img
+                              src={productImg}
+                              alt={productName}
+                              style={S.productImg}
+                              onError={(e) => { e.currentTarget.style.display = "none"; }}
+                            />
+                          ) : (
+                            "📦"
+                          )}
+                        </div>
+                        <span style={S.productName}>{productName}</span>
+                      </div>
+                    </td>
+                    <td style={S.td}>{fmtMoney(unitPrice)}</td>
+                    <td style={S.td}>{quantity}</td>
+                    <td style={S.td}>
+                      <span style={S.subBadge(subStatusColor)}>
+                        {subStatusLabel}
+                      </span>
+                    </td>
+                    <td style={S.td}>
+                      {hasRentalPeriod ? (
+                        <div style={S.rentalEndWrap}>
+                          <span style={S.rentalEndLabel}>Until</span>
+                          <span style={S.rentalEndValue}>{fmtDate(rentalEnd)}</span>
+                        </div>
+                      ) : (
+                        "—"
+                      )}
+                    </td>
+                    <td style={{ ...S.td, fontWeight: 700 }}>{fmtMoney(finalPrice)}</td>
+                    {isRentalOrder && (
+                      <td style={S.td}>
+                        {hasRentalPeriod ? (
+                          <button
+                            style={canReturn && !isReturning ? S.returnBtn : S.returnBtnDisabled}
+                            disabled={!canReturn || isReturning}
+                            title={
+                              canReturn
+                                ? "Return this rented product"
+                                : "Rental products can only be returned after the order is delivered."
+                            }
+                            onClick={() => handleReturnProduct(productId)}
+                          >
+                            ↩️ {isReturning ? "Returning..." : "Return"}
+                          </button>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
               {items.length === 0 && (
                 <tr>
-                  <td style={S.td} colSpan={6}>No items found for this order.</td>
+                  <td style={S.td} colSpan={isRentalOrder ? 7 : 6}>No items found for this order.</td>
                 </tr>
               )}
             </tbody>
@@ -385,7 +606,7 @@ export default function OrderDetailPage() {
           <h3 style={S.cardTitle}>Update Status</h3>
           <span style={S.statusRow}>
             <span style={S.dot(statusColor)} />
-            {STATUS_LABEL[status] ?? status}
+            {statusLabel}
           </span>
 
           <select
@@ -396,7 +617,7 @@ export default function OrderDetailPage() {
           >
             {selectOptions.map((s) => (
               <option key={s} value={s}>
-                {STATUS_LABEL[s] ?? s}
+                {STATUS_LABEL[s] ?? humanizeFallback(s)}
               </option>
             ))}
           </select>
@@ -411,12 +632,18 @@ export default function OrderDetailPage() {
         <div style={S.summaryCard}>
           <div style={S.summaryRow}>
             <span>Subtotal</span>
-            <span>{fmtMoney(order.subtotal)}</span>
+            <span>{fmtMoney(subtotal)}</span>
           </div>
+          {optionalMoneyFields.map((f) => (
+            <div style={S.summaryRow} key={f.key}>
+              <span>{f.label}</span>
+              <span>{fmtMoney(order[f.key])}</span>
+            </div>
+          ))}
           <div style={S.summaryDivider} />
           <div style={S.summaryFinalRow}>
             <span>Final Total</span>
-            <span style={S.finalTotal}>{fmtMoney(order.total)}</span>
+            <span style={S.finalTotal}>{fmtMoney(total)}</span>
           </div>
           <p style={{ fontSize: 11, color: "#9ca3af", margin: "10px 0 0" }}>
             * Values shown exactly as returned by the order API.
