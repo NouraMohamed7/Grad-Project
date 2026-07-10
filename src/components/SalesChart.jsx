@@ -11,7 +11,10 @@ import {
 import { getSupplierOrders } from '../apis/orders';
 import { buildSalesSeries } from '../utils/dashboardMetrics';
 
-const formatYAxis = (v) => `$${v / 1000}k`;
+const CACHE_KEY = 'sales_chart_orders_cache';
+const CACHE_TTL = 60 * 1000;
+
+const formatYAxis = (v) => `EGP${v / 1000}k`;
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -27,7 +30,7 @@ const CustomTooltip = ({ active, payload, label }) => {
       }}>
         <div style={{ color: '#6b7280', marginBottom: 2 }}>{label}</div>
         <div style={{ color: '#1a1d23', fontWeight: 700 }}>
-          ${payload[0].value.toLocaleString()}
+          EGP{payload[0].value.toLocaleString()}
         </div>
       </div>
     );
@@ -38,25 +41,41 @@ const CustomTooltip = ({ active, payload, label }) => {
 export default function SalesChart() {
   const [range, setRange] = useState('7');
   const [orders, setOrders] = useState([]);
+  // loading بيبقى false على طول لو عندنا كاش صالح، وبيتحدث في الخلفية
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
-    const load = async () => {
-      try {
-        const res = await getSupplierOrders();
-        if (active) {
-          setOrders(Array.isArray(res?.data) ? res.data : []);
-        }
-      } catch (error) {
-        console.error('SalesChart load error:', error);
-        if (active) setOrders([]);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
 
-    load();
+    // 1) اعرض الكاش فورًا لو موجود وصالح
+    try {
+      const cached = sessionStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { data, timestamp } = JSON.parse(cached);
+        if (Date.now() - timestamp < CACHE_TTL) {
+          setOrders(data || []);
+          setLoading(false);
+        }
+      }
+    } catch (e) {}
+
+    // 2) هات البيانات الجديدة في الخلفية (تحدّث الشارت لما توصل، من غير ما ترجّع Loading تاني)
+    getSupplierOrders()
+      .then((res) => {
+        if (!active) return;
+        const nextOrders = Array.isArray(res?.data) ? res.data : [];
+        setOrders(nextOrders);
+        try {
+          sessionStorage.setItem(CACHE_KEY, JSON.stringify({ data: nextOrders, timestamp: Date.now() }));
+        } catch (e) {}
+      })
+      .catch((error) => {
+        console.error('SalesChart load error:', error);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+
     return () => { active = false; };
   }, []);
 
@@ -80,40 +99,40 @@ export default function SalesChart() {
           Loading sales data...
         </div>
       ) : (
-      <ResponsiveContainer width="100%" height={260}>
-        <AreaChart data={data.length ? data : [{ label: 'No data', value: 0 }]} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
-          <defs>
-            <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
-              <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01} />
-            </linearGradient>
-          </defs>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f5" vertical={false} />
-          <XAxis
-            dataKey={range === '7' ? 'label' : 'label'}
-            tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
-            axisLine={false}
-            tickLine={false}
-          />
-          <YAxis
-            tickFormatter={formatYAxis}
-            tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
-            axisLine={false}
-            tickLine={false}
-            width={44}
-          />
-          <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e8eaed', strokeWidth: 1 }} />
-          <Area
-            type="monotone"
-            dataKey="value"
-            stroke="#2563eb"
-            strokeWidth={2.5}
-            fill="url(#salesGradient)"
-            dot={{ fill: '#2563eb', r: 4, strokeWidth: 2, stroke: 'white' }}
-            activeDot={{ r: 6, fill: '#2563eb', stroke: 'white', strokeWidth: 2 }}
-          />
-        </AreaChart>
-      </ResponsiveContainer>
+        <ResponsiveContainer width="100%" height={260}>
+          <AreaChart data={data.length ? data : [{ label: 'No data', value: 0 }]} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+            <defs>
+              <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#2563eb" stopOpacity={0.15} />
+                <stop offset="95%" stopColor="#2563eb" stopOpacity={0.01} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f2f5" vertical={false} />
+            <XAxis
+              dataKey="label"
+              tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <YAxis
+              tickFormatter={formatYAxis}
+              tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
+              axisLine={false}
+              tickLine={false}
+              width={44}
+            />
+            <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e8eaed', strokeWidth: 1 }} />
+            <Area
+              type="monotone"
+              dataKey="value"
+              stroke="#2563eb"
+              strokeWidth={2.5}
+              fill="url(#salesGradient)"
+              dot={{ fill: '#2563eb', r: 4, strokeWidth: 2, stroke: 'white' }}
+              activeDot={{ r: 6, fill: '#2563eb', stroke: 'white', strokeWidth: 2 }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       )}
     </div>
   );

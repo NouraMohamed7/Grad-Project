@@ -183,12 +183,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
           <div className="nav-section-label" style={{ marginTop: 12 }}>Account</div>
           <NavLink
-            to="/settings"
+            to="/profile"
             className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             onClick={onClose}
           >
             <i className="bi bi-gear-fill nav-icon" />
-            <span>Account Settings</span>
+            <span>Account </span>
           </NavLink>
         </nav>
 

@@ -248,7 +248,7 @@ export default function ProductInfoPage() {
               {product.is_rentable && (
   <div className="rental-fields">
     {[
-      { label: 'DAILY RATE',      value: product.rental_details?.price_daily        ? `$${product.rental_details.price_daily}` : 'N/A' },
+      { label: 'DAILY RATE', value: product.rental_details?.price_daily ? `EGP ${product.rental_details.price_daily}` : 'N/A' },
       { label: 'MIN DAYS',        value: product.rental_details?.minimum_rental_days ?? 'N/A' },
       { label: 'MAX DAYS',        value: product.rental_details?.maximum_rental_days ?? 'N/A' },
       { label: 'AVAILABLE UNITS', value: product.rental_details?.available_units     ?? 'N/A' },

@@ -4,7 +4,6 @@ import 'bootstrap-icons/font/bootstrap-icons.css';
 import App from './App';
 
 // 1. Global first (variables + reset)
-
 import './styles/global.css';
 
 // 2. Layout (sidebar + topbar)
@@ -17,6 +16,7 @@ import './styles/orders.css';
 import './styles/requests.css';
 import './styles/chat.css';
 import './styles/chats.css';
+import './styles/profile.css';
 
 // 4. Toastify
 import 'react-toastify/dist/ReactToastify.css';

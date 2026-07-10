@@ -4,7 +4,7 @@
 .cc-page {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 58px); /* subtract topbar height */
+  height: calc(100dvh - 58px);
   background: #f0f2f5;
   overflow: hidden;
   font-family: 'DM Sans', 'Segoe UI', 'Tahoma', sans-serif;
@@ -53,7 +53,7 @@
   width: 42px;
   height: 42px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: #fff;
   font-size: 14px;
   font-weight: 600;
@@ -189,7 +189,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  background: linear-gradient(135deg, #10b981, #059669);
   color: #fff;
   font-size: 11px;
   font-weight: 600;
@@ -228,10 +228,10 @@
 }
 
 .cc-bubble-them {
-  background: #fff;
-  color: #1f2937;
+  background: #10b981;
+  color: #fff;
   border-bottom-left-radius: 4px;
-  border: 1px solid #e8eaed;
+  border: 1px solid #059669;
 }
 
 .cc-bubble-me {
@@ -263,7 +263,11 @@
 }
 
 .cc-seen-tick .bi-check2-all {
-  color: #2563eb;
+  color: #60a5fa;
+}
+
+.cc-msg-row.them .cc-seen-tick .bi-check2-all {
+  color: #6ee7b7;
 }
 
 /* ─── Pending / Failed states ─── */
@@ -504,26 +508,24 @@
   }
 }
 
-@media (max-width: 420px) {
-  .cc-page {
-    height: calc(100vh - 0px);
+@media (max-width: 480px) {
+  .cc-topbar {
+    padding: 10px 12px;
+    gap: 8px;
   }
 
-  .cc-doc-name {
-    font-size: 14px;
+  .cc-messages {
+    padding: 12px;
+  }
+
+  .cc-input-bar {
+    padding: 10px 12px;
+    gap: 8px;
   }
 
   .cc-shortcuts {
     gap: 12px;
     overflow-x: auto;
-    white-space: nowrap;
-  }
-
-  .cc-msg-row {
-    max-width: 96%;
-  }
-
-  .cc-bubble {
-    font-size: 13.5px;
+    padding: 8px 12px;
   }
 }

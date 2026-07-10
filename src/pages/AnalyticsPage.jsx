@@ -7,18 +7,22 @@ import { getSupplierOrders } from '../apis/orders';
 import { getAllProducts } from '../apis/products';
 import { buildCategorySeries, buildMonthlyRevenueSeries, buildWeeklyOrderSeries, getDashboardMetrics } from '../utils/dashboardMetrics';
 
-const fmtK = (v) => `$${(v / 1000).toFixed(0)}k`;
+const fmtK = (v) => `EGP${(v / 1000).toFixed(0)}k`;
 
 const ChartTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
+  const moneyKeys = ['revenue', 'expenses']; // الحقول اللي بتمثل فلوس فقط
   return (
     <div style={{ background: 'white', border: '1px solid #e8eaed', borderRadius: 8, padding: '8px 14px', fontSize: 12.5, fontFamily: 'DM Sans,sans-serif', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
       <div style={{ color: '#9ca3af', marginBottom: 4 }}>{label}</div>
-      {payload.map((p, i) => (
-        <div key={i} style={{ color: p.color, fontWeight: 600 }}>
-          {p.name}: {typeof p.value === 'number' && p.value > 1000 ? `$${p.value.toLocaleString()}` : p.value}
-        </div>
-      ))}
+      {payload.map((p, i) => {
+        const isMoney = moneyKeys.includes(p.dataKey);
+        return (
+          <div key={i} style={{ color: p.color, fontWeight: 600 }}>
+            {p.name}: {isMoney ? `EGP${Number(p.value).toLocaleString()}` : p.value}
+          </div>
+        );
+      })}
     </div>
   );
 };
@@ -57,44 +61,44 @@ export default function AnalyticsPage() {
   const categoryData = useMemo(() => buildCategorySeries({ orders, products }), [orders, products]);
   const orderTrend = useMemo(() => buildWeeklyOrderSeries(orders), [orders]);
 
-  const kpis = [
-    {
-      label: 'Total Revenue',
-      value: loading ? '...' : `$${metrics.totalRevenue.toLocaleString()}`,
-      change: metrics.totalOrders ? `${((metrics.averageOrderValue / Math.max(1, metrics.totalRevenue || 1)) * 100).toFixed(1)}%` : '0%',
-      up: true,
-      icon: 'bi-currency-dollar',
-      bg: '#eff6ff',
-      color: '#2563eb',
-    },
-    {
-      label: 'Total Discount',
-      value: loading ? '...' : `$${metrics.totalDiscount.toLocaleString()}`,
-      change: metrics.totalDiscount > 0 ? '+0.0%' : '0%',
-      up: metrics.totalDiscount > 0,
-      icon: 'bi-graph-up-arrow',
-      bg: '#f0fdf4',
-      color: '#16a34a',
-    },
-    {
-      label: 'Total Orders',
-      value: loading ? '...' : String(metrics.totalOrders),
-      change: metrics.totalOrders > 0 ? `${metrics.completedOrders}/${metrics.totalOrders} completed` : '0 completed',
-      up: true,
-      icon: 'bi-cart-check',
-      bg: '#f5f3ff',
-      color: '#7c3aed',
-    },
-    {
-      label: 'Avg Order Value',
-      value: loading ? '...' : `$${metrics.averageOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
-      change: metrics.averageOrderValue > 0 ? 'Based on successful orders' : 'No orders yet',
-      up: metrics.averageOrderValue > 0,
-      icon: 'bi-receipt',
-      bg: '#fffbeb',
-      color: '#d97706',
-    },
-  ];
+ const kpis = [
+  {
+    label: 'Total Revenue',
+    value: loading ? '...' : `EGP${metrics.totalRevenue.toLocaleString()}`,
+    change: metrics.totalOrders ? `${((metrics.averageOrderValue / Math.max(1, metrics.totalRevenue || 1)) * 100).toFixed(1)}%` : '0%',
+    up: true,
+    icon: 'bi-currency-dollar',
+    bg: '#eff6ff',
+    color: '#2563eb',
+  },
+  {
+    label: 'Total Discount',
+    value: loading ? '...' : `EGP${metrics.totalDiscount.toLocaleString()}`,
+    change: metrics.totalDiscount > 0 ? '+0.0%' : '0%',
+    up: metrics.totalDiscount > 0,
+    icon: 'bi-graph-up-arrow',
+    bg: '#f0fdf4',
+    color: '#16a34a',
+  },
+  {
+    label: 'Total Orders',
+    value: loading ? '...' : String(metrics.totalOrders),
+    change: metrics.totalOrders > 0 ? `${metrics.completedOrders}/${metrics.totalOrders} completed` : '0 completed',
+    up: true,
+    icon: 'bi-cart-check',
+    bg: '#f5f3ff',
+    color: '#7c3aed',
+  },
+  {
+    label: 'Avg Order Value',
+    value: loading ? '...' : `EGP${metrics.averageOrderValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}`,
+    change: metrics.averageOrderValue > 0 ? 'Based on successful orders' : 'No orders yet',
+    up: metrics.averageOrderValue > 0,
+    icon: 'bi-receipt',
+    bg: '#fffbeb',
+    color: '#d97706',
+  },
+];
 
   return (
     <div className="dashboard-content">

@@ -1,6 +1,6 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
-import { sendMessage, getMessages, markAsRead } from "../apis/chat";
+import { sendMessage, getMessages, markAsRead, getConversations } from "../apis/chat";
 
 // كل قد ايه (بالمللي ثانية) نعمل بولينج على الرسايل الجديدة
 const POLL_INTERVAL_MS = 6000;
@@ -17,6 +17,35 @@ const extractMessagesArray = (res) => {
   return [];
 };
 
+// بنرجع TODAY / YESTERDAY / أو التاريخ الفعلي بتاريخ الرسالة
+const getDateLabel = (dateStr) => {
+  if (!dateStr) return "";
+  const msgDate = new Date(dateStr);
+  if (isNaN(msgDate.getTime())) return "";
+
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
+
+  const isSameDay = (a, b) =>
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate();
+
+  if (isSameDay(msgDate, today)) return "TODAY";
+  if (isSameDay(msgDate, yesterday)) return "YESTERDAY";
+
+  return msgDate.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+};
+
+// ⚠️ ده الراوت المفروض يودي لتفاصيل المنتج نفسه (مش صفحة المنتجات).
+// لو الراوت الحقيقي عندك مختلف، غيّري السطر ده بس.
+const buildProductDetailsRoute = (productId) => `/products/info/${productId}`;
+
 // ─── Component ───────────────────────────────────────────────────────────────
 export default function ChatConversationPage() {
   const { chatId } = useParams();
@@ -32,6 +61,11 @@ export default function ChatConversationPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState(null);
   const currentUserId = Number(localStorage.getItem("user_id"));
+
+  // بنستخدم activeConversationId في كل حاجة بدل الـ conversationId الجاي من location.state
+  // عشان لو محادثة جديدة اتعملت أثناء إرسال أول رسالة، أو لو رجعنا نلاقيها لوحدنا، تتحدث هنا
+  const [activeConversationId, setActiveConversationId] = useState(conversationId || null);
+
   const [convoInfo, setConvoInfo] = useState({
     doctorName: userName || "Doctor",
     doctorInitials: userName
@@ -62,6 +96,7 @@ export default function ChatConversationPage() {
         hour: "2-digit",
         minute: "2-digit",
       }),
+      rawDate: msg.created_at || null,
       seen: msg.is_read || false,
       // المنتج (لو الرسالة دي بردكت متبعت) بيجي كحقول جاهزة من الـ API
       // نفس مستوى "message" مش جوه الـ text، فمش محتاجين JSON.parse خالص
@@ -74,16 +109,36 @@ export default function ChatConversationPage() {
 
   // ─── Fetch messages (initial load) ────────────────────────
   useEffect(() => {
-    const fetchMessages = async () => {
+    const init = async () => {
       try {
         setLoading(true);
 
-        if (conversationId) {
+        let convId = conversationId || null;
+
+        // لو مفيش conversationId جاي من location.state (يعني دخلنا الصفحة بـ refresh
+        // أو رابط مباشر من غير navigate)، بنحاول نلاقي المحادثة من قايمة conversations
+        // بمطابقة الـ other_user.id مع الـ chatId اللي في الرابط
+        if (!convId && chatId) {
           try {
-            const res = await getMessages(conversationId);
+            const convosRes = await getConversations();
+            const convosList = convosRes?.data || [];
+            const match = convosList.find(
+              (c) => String(c.other_user?.id) === String(chatId),
+            );
+            if (match) convId = match.id;
+          } catch (lookupErr) {
+            console.log("Could not resolve conversation id:", lookupErr);
+          }
+        }
+
+        setActiveConversationId(convId || null);
+
+        if (convId) {
+          try {
+            const res = await getMessages(convId);
             const apiMessages = extractMessagesArray(res);
             setMessages(apiMessages.map(formatMessage));
-            await markAsRead(conversationId);
+            await markAsRead(convId);
           } catch (msgErr) {
             console.log(
               "No existing conversation or messages endpoint not available:",
@@ -104,18 +159,25 @@ export default function ChatConversationPage() {
       }
     };
 
-    fetchMessages();
+    init();
   }, [chatId, conversationId, formatMessage]);
 
   // ─── Real-time (polling) — setInterval ────────────────────
   // بنسأل السيرفر كل فترة (POLL_INTERVAL_MS) عشان أي رسالة جديدة
-  // توصل من غير ما تعمل Reload للصفحة.
+  // توصل من غير ما تعمل Reload للصفحة. بنوقف البولينج لو التاب مش فاتحة توفير للريكوستات.
   useEffect(() => {
-    if (!conversationId) return;
+    if (!activeConversationId) return;
+
+    let isTabVisible = !document.hidden;
+    const handleVisibility = () => {
+      isTabVisible = !document.hidden;
+    };
+    document.addEventListener("visibilitychange", handleVisibility);
 
     const interval = setInterval(async () => {
+      if (!isTabVisible) return;
       try {
-        const res = await getMessages(conversationId);
+        const res = await getMessages(activeConversationId);
         const apiMessages = extractMessagesArray(res);
 
         const existingIds = new Set(messagesRef.current.map((m) => m.id));
@@ -125,15 +187,18 @@ export default function ChatConversationPage() {
 
         if (newOnes.length > 0) {
           setMessages((prev) => [...prev, ...newOnes]);
-          await markAsRead(conversationId);
+          await markAsRead(activeConversationId);
         }
       } catch (err) {
         console.log("Polling error:", err);
       }
     }, POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
-  }, [conversationId, formatMessage]);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [activeConversationId, formatMessage]);
 
   // Auto-scroll to bottom on new message
   useEffect(() => {
@@ -157,6 +222,7 @@ export default function ChatConversationPage() {
       sender: "me",
       text,
       time,
+      rawDate: now.toISOString(),
       seen: false,
       pending: true,
     };
@@ -181,8 +247,16 @@ export default function ChatConversationPage() {
         ),
       );
 
-      if (!conversationId && res.data?.conversation?.id) {
-        // ممكن نعمل navigate هنا بـ state جديد فيه الـ conversationId لو أول رسالة
+      // أول رسالة في محادثة جديدة: نمسك الـ conversationId الجديد من الـ response
+      // عشان البولينج والـ markAsRead يشتغلوا من غير ما نحتاج refresh للصفحة،
+      // وبنحدث location.state عشان لو حصل refresh يفضل موجود.
+      const newConvId = res.data?.conversation?.id;
+      if (!activeConversationId && newConvId) {
+        setActiveConversationId(newConvId);
+        navigate(location.pathname, {
+          replace: true,
+          state: { ...(location.state || {}), conversationId: newConvId },
+        });
       }
     } catch (err) {
       console.error("Error sending message:", err);
@@ -210,7 +284,22 @@ export default function ChatConversationPage() {
     setInput(msg.text);
   };
 
-  const dateLabel = "TODAY";
+  // بنجمع الرسايل مع فواصل التاريخ (TODAY / YESTERDAY / تاريخ فعلي)
+  const groupedItems = useMemo(() => {
+    const groups = [];
+    let lastLabel = null;
+
+    messages.forEach((msg) => {
+      const label = getDateLabel(msg.rawDate) || "TODAY";
+      if (label !== lastLabel) {
+        groups.push({ type: "date", label, key: `date-${label}-${msg.id}` });
+        lastLabel = label;
+      }
+      groups.push({ type: "message", msg, key: msg.id });
+    });
+
+    return groups;
+  }, [messages]);
 
   const renderAvatar = (className) =>
     convoInfo.profileImage ? (
@@ -235,7 +324,7 @@ export default function ChatConversationPage() {
             padding: "6px",
           }}
           onClick={() => {
-            if (msg.productId) navigate(`/products/${msg.productId}`);
+            if (msg.productId) navigate(buildProductDetailsRoute(msg.productId));
           }}
         >
           {msg.productImage && (
@@ -315,60 +404,69 @@ export default function ChatConversationPage() {
 
       {/* ── Messages area ───────────────────────────── */}
       <div className="cc-messages">
-        <div className="cc-date-label">{dateLabel}</div>
-
         {messages.length === 0 && (
           <div className="cc-no-messages">No messages yet. Say hello!</div>
         )}
 
-        {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`cc-msg-row ${msg.sender === "me" ? "me" : "them"}`}
-          >
-            {msg.sender === "them" && renderAvatar("cc-msg-avatar")}
-            <div className="cc-msg-block">
-              <div
-                className={`cc-bubble ${msg.sender === "me" ? "cc-bubble-me" : "cc-bubble-them"}`}
-              >
-                {renderMessageBody(msg)}
-                {msg.pending && (
-                  <span className="ms-2">
-                    <div
-                      className="spinner-border spinner-border-sm"
-                      role="status"
-                      style={{ width: "12px", height: "12px" }}
-                    >
-                      <span className="visually-hidden">Sending...</span>
-                    </div>
-                  </span>
-                )}
-                {msg.failed && (
-                  <span
-                    className="ms-2 text-danger"
-                    title="Failed to send. Click to retry."
-                  >
-                    <i
-                      className="bi bi-exclamation-circle-fill"
-                      style={{ cursor: "pointer" }}
-                      onClick={() => retryMessage(msg)}
-                    ></i>
-                  </span>
-                )}
+        {groupedItems.map((item) => {
+          if (item.type === "date") {
+            return (
+              <div className="cc-date-label" key={item.key}>
+                {item.label}
               </div>
-              <div className="cc-msg-meta">
-                <span className="cc-msg-time">{msg.time}</span>
-                {msg.sender === "me" && !msg.pending && !msg.failed && (
-                  <span className="cc-seen-tick">
-                    <i
-                      className={`bi ${msg.seen ? "bi-check2-all text-primary" : "bi-check2"}`}
-                    />
-                  </span>
-                )}
+            );
+          }
+
+          const msg = item.msg;
+          return (
+            <div
+              key={item.key}
+              className={`cc-msg-row ${msg.sender === "me" ? "me" : "them"}`}
+            >
+              {msg.sender === "them" && renderAvatar("cc-msg-avatar")}
+              <div className="cc-msg-block">
+                <div
+                  className={`cc-bubble ${msg.sender === "me" ? "cc-bubble-me" : "cc-bubble-them"}`}
+                >
+                  {renderMessageBody(msg)}
+                  {msg.pending && (
+                    <span className="ms-2">
+                      <div
+                        className="spinner-border spinner-border-sm"
+                        role="status"
+                        style={{ width: "12px", height: "12px" }}
+                      >
+                        <span className="visually-hidden">Sending...</span>
+                      </div>
+                    </span>
+                  )}
+                  {msg.failed && (
+                    <span
+                      className="ms-2 text-danger"
+                      title="Failed to send. Click to retry."
+                    >
+                      <i
+                        className="bi bi-exclamation-circle-fill"
+                        style={{ cursor: "pointer" }}
+                        onClick={() => retryMessage(msg)}
+                      ></i>
+                    </span>
+                  )}
+                </div>
+                <div className="cc-msg-meta">
+                  <span className="cc-msg-time">{msg.time}</span>
+                  {msg.sender === "me" && !msg.pending && !msg.failed && (
+                    <span className="cc-seen-tick">
+                      <i
+                        className={`bi ${msg.seen ? "bi-check2-all text-primary" : "bi-check2"}`}
+                      />
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         <div ref={bottomRef} />
       </div>

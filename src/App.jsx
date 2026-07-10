@@ -31,6 +31,7 @@ import CustomRequestOffersPage from './pages/CustomRequestOffersPage';
 import RequestDetailsPage from './pages/RequestDetailsPage';
 import ChatsPage from './pages/ChatsPage';
 import ChatConversationPage from './pages/ChatConversationPage';
+import SupplierProfilePage from './pages/SupplierProfilePage';
 import PrivateRoute from './components/PrivateRoute';
 
 function DashboardLayout() {
@@ -77,6 +78,7 @@ export default function App() {
 
             <Route path="/promos" element={<PromosPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/profile" element={<SupplierProfilePage />} />
 
             <Route path="/requests" element={<CustomRequestsPage />} />
             <Route path="/requests/open" element={<OpenRequestsPage />} />

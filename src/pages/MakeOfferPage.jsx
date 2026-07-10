@@ -141,9 +141,9 @@ export default function MakeOfferPage() {
             {/* Price */}
             <div className="mo-field">
               <label className="mo-label">
-                <i className="bi bi-currency-dollar mo-label-icon" /> Proposed Price ($)
-                <span style={{ color: '#e53e3e', marginLeft: 3 }}>*</span>
-              </label>
+  <i className="bi bi-currency-dollar mo-label-icon" /> Proposed Price (EGP)
+  <span style={{ color: '#e53e3e', marginLeft: 3 }}>*</span>
+</label>
               <input
                 className={`mo-input${errors.price ? ' mo-input-error' : ''}`}
                 type="number"
@@ -260,14 +260,14 @@ export default function MakeOfferPage() {
             </div>
           )}
 
-          {requestInfo?.budget && (
-            <div className="mo-products-section">
-              <span className="mo-products-label">DOCTOR'S BUDGET</span>
-              <p style={{ color: 'var(--mo-text,#555)', fontSize: 14, marginTop: 6, fontWeight: 600 }}>
-                ${Number(requestInfo.budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              </p>
-            </div>
-          )}
+        {requestInfo?.budget && (
+  <div className="mo-products-section">
+    <span className="mo-products-label">DOCTOR'S BUDGET</span>
+    <p style={{ color: 'var(--mo-text,#555)', fontSize: 14, marginTop: 6, fontWeight: 600 }}>
+      EGP {Number(requestInfo.budget).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+    </p>
+  </div>
+)}
 
           {requestInfo?.additionalDetails && (
             <div className="mo-products-section">

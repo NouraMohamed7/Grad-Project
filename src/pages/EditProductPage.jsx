@@ -716,69 +716,72 @@ export default function EditProductPage() {
                 {form.is_rentable && (
                   <div className="rental-fields">
                     {[
-                      {
-                        label: "DAILY RATE",
-                        name: "price_daily",
-                        prefix: "$",
-                        placeholder: "0.00",
-                        error: errors.price_daily,
-                      },
-                      {
-                        label: "MIN DAYS",
-                        name: "minimum_rental_days",
-                        prefix: "",
-                        placeholder: "1",
-                        error: errors.minimum_rental_days,
-                      },
-                      {
-                        label: "MAX DAYS",
-                        name: "maximum_rental_days",
-                        prefix: "",
-                        placeholder: "30",
-                        error: errors.maximum_rental_days,
-                      },
-                      {
-                        label: "AVAILABLE UNITS",
-                        name: "available_units",
-                        prefix: "",
-                        placeholder: "0",
-                      },
-                      {
-                        label: "PREP DURATION",
-                        name: "preparation_duration",
-                        prefix: "",
-                        placeholder: "0min",
-                      },
-                    ].map((f) => (
-                      <div key={f.name} className="rental-field">
-                        <label className="rental-label">{f.label}</label>
-                        <div className="rental-input-wrap">
-                          {f.prefix && (
-                            <span className="rental-prefix">{f.prefix}</span>
-                          )}
-                          <input
-                            className={`form-input rental-input ${f.prefix ? "has-prefix" : ""} ${f.error ? "is-invalid" : ""}`}
-                            name={f.name}
-                            value={form[f.name]}
-                            onChange={handleChange}
-                            placeholder={f.placeholder}
-                            type={f.prefix === "$" ? "number" : "text"}
-                            min="0"
-                          />
-                        </div>
-                        {f.error && (
-                          <span
-                            style={{
-                              color: "#dc2626",
-                              fontSize: 11,
-                              marginTop: 3,
-                            }}
-                          >
-                            {f.error}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+  {
+    label: "DAILY RATE",
+    name: "price_daily",
+    prefix: "EGP",
+    placeholder: "0.00",
+    error: errors.price_daily,
+  },
+  {
+    label: "MIN DAYS",
+    name: "minimum_rental_days",
+    prefix: "",
+    placeholder: "1",
+    error: errors.minimum_rental_days,
+  },
+  {
+    label: "MAX DAYS",
+    name: "maximum_rental_days",
+    prefix: "",
+    placeholder: "30",
+    error: errors.maximum_rental_days,
+  },
+  {
+    label: "AVAILABLE UNITS",
+    name: "available_units",
+    prefix: "",
+    placeholder: "0",
+  },
+  {
+    label: "PREP DURATION",
+    name: "preparation_duration",
+    prefix: "",
+    placeholder: "0min",
+  },
+].map((f) => (
+  <div key={f.name} className="rental-field">
+    <label className="rental-label">{f.label}</label>
+    <div className="rental-input-wrap">
+      {f.prefix && (
+        <span className="rental-prefix">{f.prefix}</span>
+      )}
+      <input
+        className={`form-input rental-input ${f.prefix ? "has-prefix" : ""} ${f.error ? "is-invalid" : ""}`}
+        name={f.name}
+        value={form[f.name]}
+        onChange={handleChange}
+        placeholder={f.placeholder}
+        type={f.name === "price_daily" ? "number" : "text"}
+        min="0"
+      />
+    </div>
+    {f.error && (
+      <span
+        style={{
+          color: "#dc2626",
+          fontSize: 11,
+          marginTop: 3,
+        }}
+      >
+        {f.error}
+      </span>
+    )}
+  </div>
+))}
+
+
+
                   </div>
                 )}
               </div>

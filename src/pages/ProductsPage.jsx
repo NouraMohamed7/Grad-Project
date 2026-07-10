@@ -225,7 +225,7 @@ const processed = useMemo(() => {
           { label: "Total Products",  value: total,                                icon: "bi-box-seam",             bg: "#eff6ff", color: "#2563eb" },
           { label: "Low Stock",       value: lowStock,                             icon: "bi-exclamation-triangle", bg: "#fffbeb", color: "#d97706" },
           { label: "Out of Stock",    value: outStock,                             icon: "bi-x-circle",             bg: "#fef2f2", color: "#dc2626" },
-          { label: "Inventory Value", value: `$${(totalValue/1000).toFixed(1)}k`, icon: "bi-currency-dollar",      bg: "#f0fdf4", color: "#16a34a" },
+          { label: "Inventory Value", value: `EGP ${(totalValue/1000).toFixed(1)}k`, icon: "bi-currency-dollar", bg: "#f0fdf4", color: "#16a34a" },
         ].map(c => (
           <div className="stat-card" key={c.label}>
             <div>
