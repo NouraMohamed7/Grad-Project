@@ -5,6 +5,7 @@ import {
   getSupplierOrderById,
   assignOrderStatus,
   returnRentalProduct,
+  cancelOrderSupplier,
   getErrorMessage,
 } from "../apis/orders";
 
@@ -24,6 +25,8 @@ const STATUS_LABEL = {
   completed: "Completed",
   active: "Active",
   overdue: "Overdue",
+  partial_ready: "Partially Ready",
+  partial_processing: "Partially Processing",
 };
 
 const STATUS_DOT = {
@@ -41,6 +44,8 @@ const STATUS_DOT = {
   overdue:    "#dc2626",
   returned:   "#d97706",
   refunded:   "#d97706",
+  partial_ready:      "#d97706",
+  partial_processing: "#d97706",
 };
 
 // ── Sub-status (بتاعة كل item) ليها ماب لوحدها عشان مش بالضرورة نفس قيم الـ order status ──
@@ -85,6 +90,16 @@ const humanizeFallback = (raw) => {
 
 // الحالات المسموح بالتحويل ليها فعليًا من الباك (حسب الـ Postman: processing/ready بس)
 const SELECTABLE_STATUSES = ["processing", "ready"];
+
+// الحالات اللي مسموح فيها للسابلير يعمل Cancel للأوردر
+const CANCELLABLE_STATUSES = [
+  "paid",
+  "confirmed",
+  "ready",
+  "processing",
+  "partial_ready",
+  "partial_processing",
+];
 
 // أنواع الأوردر اللي بتتعامل مع rental (الباك بيرجعها كـ "rental" حسب صفحة الأوردرات)
 const RENTAL_TYPES = ["rental", "rent"];
@@ -147,6 +162,16 @@ const S = {
   secondaryBtnDisabled: {
     display: "flex", alignItems: "center", gap: 8, padding: "10px 18px",
     borderRadius: 9, border: "1px solid #e5e7eb", background: "#f9fafb", color: "#c1c5cc",
+    fontSize: 13.5, fontWeight: 700, cursor: "not-allowed",
+  },
+  dangerBtn: {
+    display: "flex", alignItems: "center", gap: 8, padding: "10px 18px",
+    borderRadius: 9, border: "1px solid #fecaca", background: "#fef2f2", color: "#dc2626",
+    fontSize: 13.5, fontWeight: 700, cursor: "pointer",
+  },
+  dangerBtnDisabled: {
+    display: "flex", alignItems: "center", gap: 8, padding: "10px 18px",
+    borderRadius: 9, border: "1px solid #f3d4d4", background: "#fdf5f5", color: "#e29a9a",
     fontSize: 13.5, fontWeight: 700, cursor: "not-allowed",
   },
   infoGrid: {
@@ -233,6 +258,30 @@ const S = {
     display: "inline-flex", alignItems: "center", gap: 3, padding: "1px 8px", borderRadius: 10,
     fontSize: 10.5, fontWeight: 700, background: "#ecfdf5", color: "#16a34a",
   },
+  // ── Cancel box (inline reason panel, no modal needed → faster to render) ──
+  cancelBox: {
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 10,
+    border: "1.5px solid #fecaca",
+    background: "#fff5f5",
+  },
+  cancelLabel: {
+    fontSize: 12.5, fontWeight: 700, color: "#991b1b", marginBottom: 8, display: "block",
+  },
+  cancelTextarea: {
+    width: "100%",
+    minHeight: 70,
+    borderRadius: 8,
+    border: "1.5px solid #fca5a5",
+    padding: "10px 12px",
+    fontSize: 13.5,
+    fontFamily: "inherit",
+    resize: "vertical",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  cancelActions: { display: "flex", gap: 8, marginTop: 10, justifyContent: "flex-end" },
 };
 
 export default function OrderDetailPage() {
@@ -245,6 +294,11 @@ export default function OrderDetailPage() {
   const [error, setError] = useState("");
   const [updating, setUpdating] = useState(false);
   const [returningItemId, setReturningItemId] = useState(null);
+
+  // Cancel-order UI state
+  const [showCancelBox, setShowCancelBox] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
 
   const fetchOrder = (silent = false) => {
     if (!id) {
@@ -303,6 +357,40 @@ export default function OrderDetailPage() {
     }
   };
 
+  // ── Cancel order ──────────────────────────────────────────────────
+  // للسرعة: بنعمل optimistic update فورًا (الأوردر يتحوّل "cancelled" في الواجهة
+  // على طول من غير ما ننتظر رد السيرفر أو نعمل إعادة تحميل كاملة للصفحة)، وبعدين
+  // بنبعت الريكوست في الخلفية. لو فشل، بنرجّع الحالة القديمة ونعرض رسالة خطأ.
+  const handleCancelOrder = async () => {
+    const reason = cancelReason.trim();
+    if (!reason) {
+      toast.error("Please enter a cancellation reason.");
+      return;
+    }
+
+    const previousOrder = order;
+    setCancelling(true);
+
+    // Optimistic UI update — instant feedback, no waiting on the network
+    setOrder((prev) => (prev ? { ...prev, status: "cancelled", order_issue: reason } : prev));
+    setShowCancelBox(false);
+
+    try {
+      await cancelOrderSupplier(id, reason);
+      toast.success("Order cancelled successfully");
+      setCancelReason("");
+      // sync silently in background in case the backend returns extra fields (e.g. sub_status)
+      fetchOrder(true);
+    } catch (err) {
+      // rollback on failure
+      setOrder(previousOrder);
+      setShowCancelBox(true);
+      toast.error(getErrorMessage(err));
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={S.page}>
@@ -347,6 +435,9 @@ export default function OrderDetailPage() {
   // زرار الريترن بيتفعل بس لو الأوردر delivered (حسب رسالة الباك:
   // "Rental products can only be returned after the order is delivered.")
   const canReturn = status === "delivered";
+
+  // زرار الكانسل بيظهر بس لو الأوردر في واحدة من الحالات دي
+  const canCancel = CANCELLABLE_STATUSES.includes(status);
 
   // ── الإيميل والاسم: من الـ API الأصلي، ولو مش موجود بناخده من navigation state
   // اللي جاي من صفحة الأوردرات (لأن single-order endpoint حاليًا ممكن ميرجعش
@@ -419,9 +510,47 @@ export default function OrderDetailPage() {
             <button style={S.primaryBtn} onClick={() => window.print()}>
               🖨️ Print Invoice
             </button>
-         
+            {canCancel && (
+              <button
+                style={cancelling ? S.dangerBtnDisabled : S.dangerBtn}
+                disabled={cancelling}
+                onClick={() => setShowCancelBox((v) => !v)}
+              >
+                ✕ Cancel Order
+              </button>
+            )}
           </div>
         </div>
+
+        {canCancel && showCancelBox && (
+          <div style={S.cancelBox}>
+            <span style={S.cancelLabel}>Reason for cancellation *</span>
+            <textarea
+              style={S.cancelTextarea}
+              placeholder="e.g. device is not working well"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              disabled={cancelling}
+              autoFocus
+            />
+            <div style={S.cancelActions}>
+              <button
+                style={S.secondaryBtn}
+                disabled={cancelling}
+                onClick={() => { setShowCancelBox(false); setCancelReason(""); }}
+              >
+                Keep Order
+              </button>
+              <button
+                style={cancelling ? S.dangerBtnDisabled : S.dangerBtn}
+                disabled={cancelling}
+                onClick={handleCancelOrder}
+              >
+                {cancelling ? "Cancelling..." : "Confirm Cancel"}
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={S.infoGrid}>
           <div style={S.infoCol}>

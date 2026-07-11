@@ -107,16 +107,17 @@ export default function DonutChart() {
         </div>
       ) : (
         <>
-          <div className="donut-wrap">
-            <ResponsiveContainer width={220} height={220}>
+          <div className="donut-wrap" style={{ position: 'relative' }}>
+            <ResponsiveContainer width={240} height={240}>
               <PieChart>
                 <Pie
                   data={data}
                   cx="50%"
                   cy="50%"
-                  innerRadius={68}
-                  outerRadius={100}
-                  paddingAngle={3}
+                  innerRadius={72}
+                  outerRadius={104}
+                  paddingAngle={4}
+                  cornerRadius={6}
                   dataKey="value"
                   strokeWidth={0}
                 >
@@ -127,6 +128,19 @@ export default function DonutChart() {
                 <Tooltip content={<CustomTooltip />} />
               </PieChart>
             </ResponsiveContainer>
+
+            <div style={{
+              position: 'absolute', top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              textAlign: 'center', pointerEvents: 'none',
+            }}>
+              <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1d23' }}>
+                {data.length}
+              </div>
+              <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600 }}>
+                {data.length === 1 ? 'Category' : 'Categories'}
+              </div>
+            </div>
           </div>
 
           <div>

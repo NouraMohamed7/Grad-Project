@@ -14,7 +14,7 @@ import { buildSalesSeries } from '../utils/dashboardMetrics';
 const CACHE_KEY = 'sales_chart_orders_cache';
 const CACHE_TTL = 60 * 1000;
 
-const formatYAxis = (v) => `EGP${v / 1000}k`;
+const formatYAxis = (v) => `EGP ${(v / 1000).toFixed(0)}k`;
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
@@ -95,11 +95,11 @@ export default function SalesChart() {
         </select>
       </div>
       {loading ? (
-        <div style={{ height: 260, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
+        <div style={{ height: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#6b7280' }}>
           Loading sales data...
         </div>
       ) : (
-        <ResponsiveContainer width="100%" height={260}>
+        <ResponsiveContainer width="100%" height={300}>
           <AreaChart data={data.length ? data : [{ label: 'No data', value: 0 }]} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
             <defs>
               <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -119,7 +119,7 @@ export default function SalesChart() {
               tick={{ fontSize: 12, fill: '#9ca3af', fontFamily: 'DM Sans' }}
               axisLine={false}
               tickLine={false}
-              width={44}
+              width={54}
             />
             <Tooltip content={<CustomTooltip />} cursor={{ stroke: '#e8eaed', strokeWidth: 1 }} />
             <Area
@@ -128,7 +128,7 @@ export default function SalesChart() {
               stroke="#2563eb"
               strokeWidth={2.5}
               fill="url(#salesGradient)"
-              dot={{ fill: '#2563eb', r: 4, strokeWidth: 2, stroke: 'white' }}
+              dot={false}
               activeDot={{ r: 6, fill: '#2563eb', stroke: 'white', strokeWidth: 2 }}
             />
           </AreaChart>

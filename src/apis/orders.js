@@ -1,3 +1,4 @@
+// src/apis/orders.js
 import axios from 'axios';
 
 const BASE_URL = 'https://med-connect-backend-ten.vercel.app/api/api';
@@ -30,6 +31,9 @@ export const getErrorMessage = (error) => {
   return (
     error.response?.data?.message ||
     error.response?.data?.error ||
+    (error.response?.data?.errors
+      ? Object.values(error.response.data.errors).flat().join(' | ')
+      : null) ||
     error.message ||
     'Request failed'
   );
@@ -74,8 +78,25 @@ export const assignOrderStatus = async (orderId, status) => {
 export const returnRentalProduct = async (orderId, productId) => {
   try {
     const res = await axios.post(
-      `${BASE_URL}/v1/orders/supplier/return/${orderId}`,
+      `${BASE_URL}/v1/order/supplier/return/${orderId}`,
       { product_id: productId },
+      { headers: authHeaders() }
+    );
+    return res.data;
+  } catch (error) {
+    throw new Error(getErrorMessage(error));
+  }
+};
+
+// Cancel an order as a supplier. Backend requires a non-empty "reason" string,
+// and only allows cancellation while the order is still in a cancellable state
+// (paid / confirmed / ready / processing / partial_ready / partial_processing) —
+// enforced on the UI side too, see CANCELLABLE_STATUSES in OrderDetailPage.jsx.
+export const cancelOrderSupplier = async (orderId, reason) => {
+  try {
+    const res = await axios.post(
+      `${BASE_URL}/v1/order/supplier/cancel/${orderId}`,
+      { reason },
       { headers: authHeaders() }
     );
     return res.data;

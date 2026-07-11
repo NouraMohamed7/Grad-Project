@@ -67,6 +67,7 @@ const SortIcon = ({ field, sortField, sortDir }) => {
 export default function ProductsPage() {
   const navigate = useNavigate();
   const PER_PAGE = 8;
+  const STATS_PER_PAGE = 50; // batch size used only for aggregating global stats
 
   const [products,      setProducts]      = useState([]);
   const [loading,       setLoading]       = useState(true);
@@ -81,10 +82,14 @@ export default function ProductsPage() {
   const [sortDir,       setSortDir]       = useState("asc");
   const [statusFilter,  setStatusFilter]  = useState("");
 
+  // Global stats across ALL products (not just the current page)
+  const [stats,        setStats]        = useState({ lowStock: 0, outStock: 0, totalValue: 0 });
+  const [statsLoading, setStatsLoading] = useState(true);
+
  // القيم المسموح بيها من الباك اند فقط
 const BACKEND_SORTABLE = ["id", "name", "description", "created_at"];
 
-// ── Fetch ───────────────────────────────────────────────────────────────────
+// ── Fetch (current page only — used for the table) ──────────────────────────
 const fetchProducts = useCallback(async () => {
   setLoading(true);
   setApiError("");
@@ -125,6 +130,41 @@ const fetchProducts = useCallback(async () => {
 
 useEffect(() => { fetchProducts(); }, [fetchProducts]);
 
+// ── Fetch ALL products across ALL pages to build accurate global stats ─────
+// Aggregates progressively: stats update after every batch, not just at the end.
+const fetchAllStats = useCallback(async () => {
+  setStatsLoading(true);
+  const acc = { lowStock: 0, outStock: 0, totalValue: 0 };
+  let page = 1;
+
+  try {
+    while (true) {
+      const data = await getAllProducts({ page, per_page: STATS_PER_PAGE });
+      const list = Array.isArray(data?.data) ? data.data : [];
+
+      list.forEach((p) => {
+        const stock = p.stock ?? 0;
+        if (stock === 0) acc.outStock += 1;
+        else if (stock < 10) acc.lowStock += 1;
+        acc.totalValue += parseFloat(p.price || 0) * stock;
+      });
+
+      // تحديث حبة حبة كل ما دفعة توصل
+      setStats({ ...acc });
+
+      const lastPageFromApi = data?.last_page || 1;
+      if (page >= lastPageFromApi || list.length === 0) break;
+      page += 1;
+    }
+  } catch (err) {
+    // نسيب الأرقام اللي اتجمعت لحد دلوقتي زي ما هي
+  } finally {
+    setStatsLoading(false);
+  }
+}, []);
+
+useEffect(() => { fetchAllStats(); }, [fetchAllStats]);
+
 // ── Client-side search + local sort/filter for unsupported backend fields ──
 const processed = useMemo(() => {
   let list = [...products];
@@ -144,11 +184,6 @@ const processed = useMemo(() => {
   return list;
 }, [products, statusFilter, sortField, sortDir]);
 
-  // ── Stats from current page data ────────────────────────────────────────────
-  const lowStock   = products.filter(p => p.stock > 0 && p.stock < 10).length;
-  const outStock   = products.filter(p => p.stock === 0).length;
-  const totalValue = products.reduce((s, p) => s + parseFloat(p.price || 0) * (p.stock || 0), 0);
-
   // ── Sort ────────────────────────────────────────────────────────────────────
   const handleSort = (field) => {
     if (sortField === field) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -163,6 +198,7 @@ const processed = useMemo(() => {
       await updateProductArchive(product.id, newArchive);
       toast.success(product.is_archive ? "Product unarchived" : "Product archived");
       fetchProducts();
+      fetchAllStats();
     } catch (err) {
       toast.error(err?.message || "Failed to update archive status");
     } finally {
@@ -183,6 +219,7 @@ const processed = useMemo(() => {
           await deleteProduct(product.id);
           toast.success("Product deleted successfully");
           fetchProducts();
+          fetchAllStats();
         } catch (err) {
           toast.error(err?.message || "Failed to delete product", { autoClose: 6000 });
         } finally {
@@ -219,18 +256,22 @@ const processed = useMemo(() => {
         </div>
       </div>
 
-      {/* Stat cards */}
+      {/* Stat cards — computed across ALL products, not just the current page */}
       <div className="stats-grid" style={{ gridTemplateColumns: "repeat(4,1fr)", marginBottom: 20 }}>
         {[
-          { label: "Total Products",  value: total,                                icon: "bi-box-seam",             bg: "#eff6ff", color: "#2563eb" },
-          { label: "Low Stock",       value: lowStock,                             icon: "bi-exclamation-triangle", bg: "#fffbeb", color: "#d97706" },
-          { label: "Out of Stock",    value: outStock,                             icon: "bi-x-circle",             bg: "#fef2f2", color: "#dc2626" },
-          { label: "Inventory Value", value: `EGP ${(totalValue/1000).toFixed(1)}k`, icon: "bi-currency-dollar", bg: "#f0fdf4", color: "#16a34a" },
+          { label: "Total Products",  value: total,                                              icon: "bi-box-seam",             bg: "#eff6ff", color: "#2563eb", global: false },
+          { label: "Low Stock",       value: stats.lowStock,                                      icon: "bi-exclamation-triangle", bg: "#fffbeb", color: "#d97706", global: true  },
+          { label: "Out of Stock",    value: stats.outStock,                                      icon: "bi-x-circle",             bg: "#fef2f2", color: "#dc2626", global: true  },
+          { label: "Inventory Value", value: `EGP ${(stats.totalValue / 1000).toFixed(1)}k`,       icon: "bi-currency-dollar",      bg: "#f0fdf4", color: "#16a34a", global: true  },
         ].map(c => (
           <div className="stat-card" key={c.label}>
             <div>
               <div className="stat-label">{c.label}</div>
-              <div className="stat-value">{loading ? "—" : c.value}</div>
+              <div className="stat-value">
+                {c.global
+                  ? (statsLoading && total > 0 ? `${c.value}…` : c.value)
+                  : (loading ? "—" : c.value)}
+              </div>
             </div>
             <div className="stat-icon-wrap" style={{ background: c.bg, color: c.color }}>
               <i className={`bi ${c.icon}`} />
