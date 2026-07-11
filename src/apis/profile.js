@@ -1,7 +1,7 @@
 // src/apis/profile.js
 // كل التعامل مع الـ API الخاص ببروفايل السابلير موجود هنا في مكان واحد
 
-const BASE_URL = 'https://medconnect-one-pi.vercel.app/api/api';
+const BASE_URL = 'https://med-connect-backend-ten.vercel.app/api/api';
 
 function getSupplierToken() {
   return localStorage.getItem('supplier_token');

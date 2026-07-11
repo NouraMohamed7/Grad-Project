@@ -1,7 +1,7 @@
 // src/apis/offerRequests.js
 import axios from 'axios';
 
-const BASE_URL = 'https://medconnect-one-pi.vercel.app/api/api';
+const BASE_URL = 'https://med-connect-backend-ten.vercel.app/api/api';
 
 const authHeaders = () => ({
   Accept: 'application/json',

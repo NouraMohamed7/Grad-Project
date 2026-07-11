@@ -1,7 +1,7 @@
 // src/apis/Products.js
 import axios from "axios";
 
-const BASE_URL = "https://medconnect-one-pi.vercel.app/api/api";
+const BASE_URL = "https://med-connect-backend-ten.vercel.app/api/api";
 const TOKEN_KEYS = ["token", "supplier_token", "doctor_token", "admin_token"];
 
 const getStoredToken = (preferredKey = "") => {
