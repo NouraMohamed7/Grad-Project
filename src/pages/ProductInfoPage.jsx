@@ -254,6 +254,8 @@ export default function ProductInfoPage() {
       { label: 'AVAILABLE UNITS', value: product.rental_details?.available_units     ?? 'N/A' },
       { label: 'STOCK UNIT',      value: product.stock ?? 'N/A' },
       { label: 'PREP DURATION',   value: product.rental_details?.preparation_duration ?? 'N/A' },
+      { label: 'RENTAL STOCK UNITS', value: product.rental_details?.stock_units ?? 'N/A' },
+      { label: 'EXTEND DAYS RENT',   value: product.rental_details?.extends_days_rent ?? 'N/A' },
     ].map(f => (
       <div key={f.label} className="rental-field">
         <label className="rental-label">{f.label}</label>
@@ -282,6 +284,64 @@ export default function ProductInfoPage() {
                       </div>
                     ))
                   )}
+                </div>
+              </>
+            )}
+
+            {/* Archive Status */}
+            <div className="section-heading" style={{ marginTop: 24 }}>
+              <div className="section-icon blue"><i className="bi bi-archive-fill" /></div>
+              Archive Status
+            </div>
+            <div className="pinfo-spec-box" style={{ marginBottom: 8 }}>
+              <div className="pinfo-spec-row" style={{ borderBottom: 'none' }}>
+                <span className="pinfo-spec-key">IS ARCHIVED</span>
+                <span
+                  className="pinfo-status-pill"
+                  style={{
+                    background: product.is_archive ? '#fef2f2' : '#f0fdf4',
+                    color:      product.is_archive ? '#dc2626' : '#16a34a',
+                    border:     `1.5px solid ${product.is_archive ? '#dc262644' : '#16a34a44'}`,
+                  }}
+                >
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: product.is_archive ? '#dc2626' : '#16a34a' }} />
+                  {product.is_archive ? 'ARCHIVED' : 'NOT ARCHIVED'}
+                </span>
+              </div>
+            </div>
+
+            {/* Reviews */}
+            {product.reviews && product.reviews.length > 0 && (
+              <>
+                <div className="section-heading" style={{ marginTop: 24 }}>
+                  <div className="section-icon blue"><i className="bi bi-star-fill" /></div>
+                  Reviews ({product.reviews.length})
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {product.reviews.map((rev) => (
+                    <div key={rev.id} className="pinfo-spec-box" style={{ padding: 14 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <i
+                              key={i}
+                              className={i < (rev.rating || 0) ? 'bi bi-star-fill' : 'bi bi-star'}
+                              style={{ color: '#d97706', fontSize: 13 }}
+                            />
+                          ))}
+                          <span style={{ fontSize: 12, color: '#6b7280', fontWeight: 600, marginLeft: 4 }}>
+                            {rev.rating ?? 'N/A'}/5
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 11, color: '#9ca3af' }}>
+                          Doctor #{rev.doctor_id} · {rev.created_at ? new Date(rev.created_at).toLocaleDateString() : ''}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 13, color: '#374151' }}>
+                        {rev.comment || 'No comment provided.'}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </>
             )}
