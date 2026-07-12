@@ -55,7 +55,7 @@ function LogoutDialog({ onConfirm, onCancel }) {
           Sign out?
         </div>
         <div style={{ fontSize: 13.5, color: '#6b7280', lineHeight: 1.65, marginBottom: 24 }}>
-          Are you sure you want to sign out of MediEquip? You&apos;ll need to log in again to access your dashboard.
+          Are you sure you want to sign out of MedConnect? You&apos;ll need to log in again to access your dashboard.
         </div>
         <div style={{ height: 1, background: '#f3f4f6', margin: '0 -28px 18px' }} />
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
@@ -131,7 +131,7 @@ export default function Sidebar({ isOpen, onClose }) {
           <div className="logo-icon">
             <i className="bi bi-plus-circle-fill" />
           </div>
-          <span>MediEquip</span>
+          <span>MedConnect</span>
         </div>
 
         <nav className="sidebar-nav">
