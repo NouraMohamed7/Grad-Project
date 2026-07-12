@@ -172,7 +172,6 @@ export default function SupplierProfilePage() {
                 }`}
                 style={{ fontSize: 16, marginBottom: 4, display: 'block' }}
               />
-              {Number(profile.is_verified) === 1 ? 'موثّق' : 'غير موثّق'}
             </div>
           </div>
         </div>
